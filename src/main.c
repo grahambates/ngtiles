@@ -24,12 +24,12 @@ int verbose;
 
 // Extracts a tile from the image with a slight border
 // This is used for palette generation, and reduces visible borders between tiles
-static void extract_tile_pixels_with_neighbors(Image *source, int tile_x, int tile_y, RGBA pixels[]) {
-  for (int y = -BORDER_SIZE; y < TILE_SIZE + BORDER_SIZE; y++) {
-    for (int x = -BORDER_SIZE; x < TILE_SIZE + BORDER_SIZE; x++) {
+static void extract_tile_pixels(Image *source, int tile_x, int tile_y, RGBA pixels[], int border_size) {
+  for (int y = -border_size; y < TILE_SIZE + border_size; y++) {
+    for (int x = -border_size; x < TILE_SIZE + border_size; x++) {
       int sx = tile_x * TILE_SIZE + x;
       int sy = tile_y * TILE_SIZE + y;
-      int offset = (y + BORDER_SIZE) * TILE_SIZE_EXP + (x + BORDER_SIZE);
+      int offset = (y + border_size) * (TILE_SIZE+2*border_size) + (x + border_size);
 
       // Ensure within bounds
       if (sx >= 0 && sx < source->width && sy >= 0 && sy < source->height) {
@@ -37,22 +37,6 @@ static void extract_tile_pixels_with_neighbors(Image *source, int tile_x, int ti
       } else {
         // Out of bounds
         pixels[offset] = (RGBA){0, 0, 0, 0};
-      }
-    }
-  }
-}
-
-// Extract 16x16 tile pixels from the source image
-static void extract_tile_pixels(Image *source, int x, int y, RGBA pixels[]) {
-  for (int ty = 0; ty < TILE_SIZE; ty++) {
-    for (int tx = 0; tx < TILE_SIZE; tx++) {
-      int sx = x * TILE_SIZE + tx;
-      int sy = y * TILE_SIZE + ty;
-      if (sx < source->width && sy < source->height) {
-        pixels[ty * TILE_SIZE + tx] = source->pixels[sy * source->width + sx];
-      } else {
-        // Fill empty space with transparent px if image size is not a multiple of 16
-        pixels[ty * TILE_SIZE + tx] = (RGBA){0, 0 ,0, 0};
       }
     }
   }
@@ -78,7 +62,7 @@ NgImage *convert_image(Image *source) {
   for (int ty = 0; ty < tiles_y; ty++) {
     for (int tx = 0; tx < tiles_x; tx++) {
       verbose_log("Processing tile [%d,%d]\n", tx, ty);
-      extract_tile_pixels_with_neighbors(source, tx, ty, expanded_pixels);
+      extract_tile_pixels(source, tx, ty, expanded_pixels, BORDER_SIZE);
       palettes[palette_count] = create_palette_from_tile(expanded_pixels, palette_count);
       palette_count++;
     }
@@ -108,7 +92,7 @@ NgImage *convert_image(Image *source) {
   for (int ty = 0; ty < tiles_y; ty++) {
     for (int tx = 0; tx < tiles_x; tx++) {
       // Extract only the actual tile pixels now
-      extract_tile_pixels(source, tx, ty, tile_pixels);
+      extract_tile_pixels(source, tx, ty, tile_pixels, 0);
       // Map palette indexes to pixels
       int palette_index = merged_map[tile_index];
       Palette *palette = palettes[palette_index];
