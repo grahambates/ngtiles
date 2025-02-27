@@ -23,19 +23,20 @@ DEPS := $(OBJS:.o=.d)
 ifeq ($(OS), Windows_NT)
     TARGET := bin/ngtiles.exe
     RM := del /Q
-    MKDIR := if not exist build mkdir build
+    MKDIR := if not exist build mkdir
     PKG_CONFIG := pkg-config --msvc-syntax
 else
     RM := rm -f
-    MKDIR := mkdir -p build
+    MKDIR := mkdir -p
 endif
 
 # Build rules
 $(TARGET): $(OBJS)
+	$(MKDIR) bin
 	$(CC) $^ $(LDLIBS) -o $@
 
 build/%.o: src/%.c
-	$(MKDIR)
+	$(MKDIR) build
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Cleanup
