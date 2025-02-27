@@ -47,7 +47,12 @@ jobs:
           echo "PKG_CONFIG_PATH=/mingw64/lib/pkgconfig" >> $GITHUB_ENV
           echo "PATH=/mingw64/bin:$PATH" >> $GITHUB_ENV
 
-      - name: Build project
+      - name: Build on Linux/macOS
+        if: runner.os != 'Windows'
+        run: make
+
+      - name: Build on Windows
+        if: runner.os == 'Windows'
         shell: msys2 {0}
         run: make
 
