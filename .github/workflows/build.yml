@@ -19,24 +19,36 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # Linux Dependencies
       - name: Install dependencies (Linux)
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config libpng-dev
 
+      # macOS Dependencies
       - name: Install dependencies (macOS)
         if: runner.os == 'macOS'
         run: brew install pkg-config libpng
 
-      - name: Install dependencies (Windows)
+      # Windows Dependencies (Using MSYS2)
+      - name: Set up MSYS2
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          install: >
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-pkg-config
+            mingw-w64-x86_64-libpng
+
+      - name: Set up environment variables (Windows)
         if: runner.os == 'Windows'
         run: |
-          choco install make pkgconfiglite mingw
-
-      - name: Set up Windows environment
-        if: runner.os == 'Windows'
-        run: echo "CC=gcc" >> $GITHUB_ENV
+          echo "CC=x86_64-w64-mingw32-gcc" >> $GITHUB_ENV
+          echo "PKG_CONFIG_PATH=/mingw64/lib/pkgconfig" >> $GITHUB_ENV
+          echo "PATH=/mingw64/bin:$PATH" >> $GITHUB_ENV
 
       - name: Build project
+        shell: msys2 {0}
         run: make
 
       - name: Upload binary artifact
