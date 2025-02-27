@@ -3,9 +3,6 @@ ngtiles
 .vscode
 *.o
 *.d
-*.bpl
-*.bin
-*.cop
 *.png
 .DS_Store
 compile_commands.json
