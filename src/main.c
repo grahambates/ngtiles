@@ -20,6 +20,8 @@
 #include "color_reduction.h"
 #include "palette_merging.h"
 
+int verbose;
+
 // Extracts a tile from the image with a slight border
 // This is used for palette generation, and reduces visible borders between tiles
 static void extract_tile_pixels_with_neighbors(Image *source, int tile_x, int tile_y, RGBA pixels[]) {
