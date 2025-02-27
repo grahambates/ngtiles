@@ -92,7 +92,7 @@ uint8_t* convert_sprite(uint8_t indexed_pixels[]) {
 
 // Convert quantised RGB to NeoGeo native bit order
 // see https://wiki.neogeodev.org/index.php?title=Colors
-uint16_t rgb_to_ng(RGBA color) {
+static inline uint16_t rgb_to_ng(RGBA color) {
   // RGB source:                         7  6  5  4  3  2  1  0
   // NG equiv:                           4  3  2  1  0  d __ __
   // Target:     D R0 G0 B0 R4 R3 R2 R1 G4 G3 G2 G1 B4 B3 B2 B1

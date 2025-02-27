@@ -1,7 +1,6 @@
 #include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <string.h>
 
 #include "consts.h"
 #include "colors.h"
@@ -12,11 +11,6 @@ Palette *create_palette(int index) {
   palette->count = 1;
   palette->index = index;
   return palette;
-}
-
-// Create unique hash for RGBA colour
-uint32_t color_hash(RGBA c) {
-    return ((uint32_t)c.r << 24) | ((uint32_t)c.g << 16) | ((uint32_t)c.b << 8) | c.a;
 }
 
 // Add an RGBA colour to a palette, updating count and hash
@@ -59,11 +53,6 @@ void print_palette(Palette *palette) {
   for (int i = 1; i < palette->count; i++)
     printf("%02x%02x%02x ", palette->entries[i].r, palette->entries[i].g, palette->entries[i].b);
   printf("\n");
-}
-
-// Check if two RGB colours are identical (use hash instead for palette colours)
-int same_color(RGBA *a, RGBA *b) {
-  return memcmp(a, b, 3) == 0;
 }
 
 #if LAB_SPACE

@@ -25,8 +25,6 @@ void free_ng_image(NgImage *image);
 
 uint8_t* convert_sprite(uint8_t indexed_pixels[]);
 
-uint16_t rgb_to_ng(RGBA color);
-
 uint16_t *convert_palette(Palette *palette);
 
 #endif

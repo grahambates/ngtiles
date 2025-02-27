@@ -16,7 +16,9 @@ Image *create_image(int width, int height) {
 }
 
 void free_image(Image *image) {
-  free(image->pixels);
+  if (image->pixels != NULL) {
+    free(image->pixels);
+  }
   free(image);
 }
 
@@ -105,7 +107,7 @@ Image *load_image(const char *filename) {
   return image;
 }
 
-// Save png of tiles recombined for debugging purposes
+// Save png file
 int save_image(const char *filename, Image *image) {
   FILE *fp = fopen(filename, "wb");
   if (!fp) {
