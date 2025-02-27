@@ -12,7 +12,7 @@ LIBS := libpng
 CC ?= gcc
 CFLAGS := -Wall -Wextra -std=c11 -MMD -MP -Iinclude
 CFLAGS += $(shell $(PKG_CONFIG) --cflags $(LIBS))
-LDLIBS := $(shell $(PKG_CONFIG) --libs $(LIBS))
+LDLIBS := $(shell $(PKG_CONFIG) --libs $(LIBS)) -lm
 
 # Source and object files
 SRCS := $(wildcard src/*.c)
