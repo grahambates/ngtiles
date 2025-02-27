@@ -62,7 +62,6 @@ jobs:
       - name: Copy required DLLs (Windows)
         if: runner.os == 'Windows'
         run: |
-          mkdir -p bin
           ldd bin/ngtiles.exe | grep mingw64 | awk '{print $3}' | xargs -I {} cp {} bin/
 
       - name: Upload Windows artifact (with DLLs)
