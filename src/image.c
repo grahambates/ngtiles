@@ -1,23 +1,33 @@
 #include <png.h>
+#include <stdint.h>
 #include <string.h>
 #include <errno.h>
 
 #include "colors.h"
 #include "image.h"
+#include "consts.h"
 #include "safe_mem.h"
 #include "log.h"
 
-Image *create_image(int width, int height) {
+Image *create_image(int width, int height, bool indexed) {
   Image *image = safe_malloc(sizeof(Image));
   image->width = width;
   image->height = height;
-  image->pixels = safe_malloc(width * height * sizeof(RGBA));
+  image->indexed = indexed;
+  if (indexed) {
+    image->pixel_indices = safe_malloc(width * height * sizeof(uint8_t));
+  } else {
+    image->pixels = safe_malloc(width * height * sizeof(RGBA));
+  }
   return image;
 }
 
 void free_image(Image *image) {
   if (image->pixels != NULL) {
     free(image->pixels);
+  }
+  if (image->pixel_indices != NULL) {
+    free(image->pixel_indices);
   }
   free(image);
 }
@@ -57,9 +67,39 @@ Image *load_image(const char *filename) {
 
   verbose_log("%dx%d, color_type: %d, bit_depth: %d\n", width, height, color_type, bit_depth);
 
+  bool indexed = false;
+  Palette *palette;
+
   // Convert indexed and grayscale images to RGB
-  if (color_type == PNG_COLOR_TYPE_PALETTE)
-    png_set_palette_to_rgb(png);
+  if (color_type == PNG_COLOR_TYPE_PALETTE) {
+    // Get palette data
+    png_colorp png_palette;
+    int num_palette;
+    if (png_get_PLTE(png, info, &png_palette, &num_palette) != PNG_INFO_PLTE) {
+      error_log("Failed to get palette data for indexed PNG\n");
+      png_destroy_read_struct(&png, &info, NULL);
+      fclose(fp);
+      return NULL;
+    }
+
+    if (num_palette <= NUM_COLORS) {
+      // Can use indexed mode if palette size <= 16
+      verbose_log("Using fixed palette with %d colors\n", num_palette);
+      indexed = true;
+      // Get palette colors, assume zero transparent
+      palette = create_palette(0);
+      for (int i = 1; i < num_palette; i++) {
+        RGBA color = quantize_rgb(
+          (RGBA){png_palette[i].red, png_palette[i].green, png_palette[i].blue, 0xff}
+        );
+        add_to_palette(palette, &color);
+      }
+    } else {
+      // Convert to RGB if > 16
+      verbose_log("Index palette too big at %d colors, converting to RGB\n", num_palette);
+      png_set_palette_to_rgb(png);
+    }
+  }
 
   if (color_type == PNG_COLOR_TYPE_GRAY || color_type == PNG_COLOR_TYPE_GRAY_ALPHA) {
     if (bit_depth < 8)
@@ -80,28 +120,38 @@ Image *load_image(const char *filename) {
 
   png_read_update_info(png, info);
 
-  Image *image = create_image(width, height);
+  Image *image = create_image(width, height, indexed);
 
   png_bytep *row_pointers = safe_malloc(sizeof(png_bytep) * height);
   for (int y = 0; y < height; y++) {
     row_pointers[y] = safe_malloc(png_get_rowbytes(png, info));
   }
-
   png_read_image(png, row_pointers);
 
   // Copy data to our image structure
-  for (int y = 0; y < height; y++) {
-    for (int x = 0; x < width; x++) {
-      png_byte *ptr = &(row_pointers[y][x * 4]);
-      image->pixels[y * width + x].r = ptr[0];
-      image->pixels[y * width + x].g = ptr[1];
-      image->pixels[y * width + x].b = ptr[2];
-      image->pixels[y * width + x].a = ptr[3];
+  if (indexed) {
+    image->palette = palette;
+    for (int y = 0; y < height; y++) {
+      for (int x = 0; x < width; x++) {
+        png_byte *ptr = &(row_pointers[y][x]);
+        image->pixel_indices[y * width + x] = ptr[0];
+      }
+      free(row_pointers[y]);
     }
-    free(row_pointers[y]);
+  } else {
+    for (int y = 0; y < height; y++) {
+      for (int x = 0; x < width; x++) {
+        png_byte *ptr = &(row_pointers[y][x * 4]);
+        image->pixels[y * width + x].r = ptr[0];
+        image->pixels[y * width + x].g = ptr[1];
+        image->pixels[y * width + x].b = ptr[2];
+        image->pixels[y * width + x].a = ptr[3];
+      }
+      free(row_pointers[y]);
+    }
   }
-  free(row_pointers);
 
+  free(row_pointers);
   png_destroy_read_struct(&png, &info, NULL);
   fclose(fp);
   return image;
