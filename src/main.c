@@ -96,14 +96,14 @@ NgImage *convert_image(Image *source) {
 
   } else {
     // Dither RGB images *before* palette generation
-	// We don't do this for indexed PNGs, even if we since converted them to RGB
+    // We don't do this for indexed PNGs, even if we since converted them to RGB
     if (!source->indexed)
-		apply_dithering(source);
+      apply_dithering(source);
 
     // First generate specific palettes for each tile:
     int palette_count = 0;
-    for (int ty = 0; ty < tiles_y; ty++) {
-      for (int tx = 0; tx < tiles_x; tx++) {
+    for (int tx = 0; tx < tiles_x; tx++) {
+      for (int ty = 0; ty < tiles_y; ty++) {
         verbose_log("Processing tile [%d,%d]\n", tx, ty);
         extract_tile_pixels(source, tx, ty, expanded_pixels, BORDER_SIZE);
         palettes[palette_count] = create_palette_from_tile(expanded_pixels, palette_count);
@@ -129,8 +129,8 @@ NgImage *convert_image(Image *source) {
 
   // Now process each tile:
   int tile_index = 0;
-  for (int ty = 0; ty < tiles_y; ty++) {
-    for (int tx = 0; tx < tiles_x; tx++) {
+  for (int tx = 0; tx < tiles_x; tx++) {
+    for (int ty = 0; ty < tiles_y; ty++) {
       Palette *palette;
 
       if (source->fixed_palette) {
@@ -186,33 +186,33 @@ NgImage *convert_image(Image *source) {
 
 // Create filenames for tile data and preview based on source file
 static void generate_filenames(const char *source_file, const char *output_dir, char *tiles_file, char *preview_file) {
-    char base[MAX_FILENAME_LEN];
-    char *filename = strrchr(source_file, '/'); // Find last '/' for basename extraction
+  char base[MAX_FILENAME_LEN];
+  char *filename = strrchr(source_file, '/'); // Find last '/' for basename extraction
 
-    if (filename) {
-        filename++; // Skip the '/'
-    } else {
-        filename = (char *)source_file; // No directory in source_file
-    }
+  if (filename) {
+    filename++; // Skip the '/'
+  } else {
+    filename = (char *)source_file; // No directory in source_file
+  }
 
-    char *dot = strrchr(filename, '.'); // Find last '.'
-    if (dot) {
-        size_t base_len = dot - filename;
-        strncpy(base, filename, base_len);
-        base[base_len] = '\0';  // Null-terminate
-    } else {
-        strncpy(base, filename, MAX_FILENAME_LEN - 1);
-        base[MAX_FILENAME_LEN - 1] = '\0';
-    }
+  char *dot = strrchr(filename, '.'); // Find last '.'
+  if (dot) {
+    size_t base_len = dot - filename;
+    strncpy(base, filename, base_len);
+    base[base_len] = '\0';  // Null-terminate
+  } else {
+    strncpy(base, filename, MAX_FILENAME_LEN - 1);
+    base[MAX_FILENAME_LEN - 1] = '\0';
+  }
 
-    // Use output_dir if provided, otherwise use current directory
-    if (output_dir && strlen(output_dir) > 0) {
-        snprintf(tiles_file, MAX_FILENAME_LEN, "%s/%s.tiles", output_dir, base);
-        snprintf(preview_file, MAX_FILENAME_LEN, "%s/%s-preview.png", output_dir, base);
-    } else {
-        snprintf(tiles_file, MAX_FILENAME_LEN, "%s.tiles", base);
-        snprintf(preview_file, MAX_FILENAME_LEN, "%s-preview.png", base);
-    }
+  // Use output_dir if provided, otherwise use current directory
+  if (output_dir && strlen(output_dir) > 0) {
+    snprintf(tiles_file, MAX_FILENAME_LEN, "%s/%s.tiles", output_dir, base);
+    snprintf(preview_file, MAX_FILENAME_LEN, "%s/%s-preview.png", output_dir, base);
+  } else {
+    snprintf(tiles_file, MAX_FILENAME_LEN, "%s.tiles", base);
+    snprintf(preview_file, MAX_FILENAME_LEN, "%s-preview.png", base);
+  }
 }
 
 void print_usage(const char *prog_name) {
