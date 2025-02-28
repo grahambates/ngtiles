@@ -10,13 +10,13 @@ LIBS := libpng
 
 # Compiler settings
 CC ?= gcc
-CFLAGS := -Wall -Wextra -std=c11 -MMD -MP -Iinclude
+CFLAGS := -Wall -Wextra -std=c11 -MMD -MP -Iinclude -Ilib
 CFLAGS += $(shell $(PKG_CONFIG) --cflags $(LIBS))
 LDLIBS := $(shell $(PKG_CONFIG) --libs $(LIBS)) -lm
 
 # Source and object files
 SRCS := $(wildcard src/*.c)
-OBJS := $(patsubst src/%.c, build/%.o, $(SRCS))
+OBJS := $(patsubst src/%.c, build/%.o, $(SRCS)) lib/xxhash.o
 DEPS := $(OBJS:.o=.d)
 
 # Windows-specific settings
@@ -36,6 +36,10 @@ $(TARGET): $(OBJS)
 	$(CC) $^ $(LDLIBS) -o $@
 
 build/%.o: src/%.c
+	$(MKDIR) build
+	$(CC) $(CFLAGS) -c $< -o $@
+
+build/%.o: lib/%.c
 	$(MKDIR) build
 	$(CC) $(CFLAGS) -c $< -o $@
 

@@ -2,6 +2,8 @@
 // separate path for indexed mode
 // lossy palette reduction
 // pre-dither?
+// preview option
+// how to control dither? only on RGB?
 
 #include <stdint.h>
 #include <stdio.h>
@@ -19,10 +21,11 @@
 #include "output.h"
 #include "color_reduction.h"
 #include "palette_merging.h"
+#include "xxhash.h"
 
 int verbose;
 
-// Extracts a tile from the image with a slight border
+// Extracts a tile from the image with optional border
 // This is used for palette generation, and reduces visible borders between tiles
 static void extract_tile_pixels(Image *source, int tile_x, int tile_y, RGBA pixels[], int border_size) {
   for (int y = -border_size; y < TILE_SIZE + border_size; y++) {
@@ -42,6 +45,23 @@ static void extract_tile_pixels(Image *source, int tile_x, int tile_y, RGBA pixe
   }
 }
 
+static int tile_hashes[MAX_TILES];
+static int merged_palettes_map[MAX_TILES];
+static int ng_palette_map[MAX_TILES];
+static Palette *palettes[MAX_TILES];
+static RGBA expanded_pixels[TILE_SIZE_EXP * TILE_SIZE_EXP];
+static RGBA tile_pixels[TILE_SIZE * TILE_SIZE];
+static uint8_t indexed_pixels[TILE_SIZE * TILE_SIZE];
+
+static int existing_tile_index(int hash, int tile_count) {
+  for (int i = 0; i < tile_count; i++) {
+    if (tile_hashes[i] == hash) {
+      return i;
+    }
+  }
+  return -1;
+}
+
 // Convert source image to NgImage structure
 NgImage *convert_image(Image *source) {
   // Calculate number of tiles
@@ -50,14 +70,10 @@ NgImage *convert_image(Image *source) {
   verbose_log("Splitting into %dx%d tiles\n", tiles_x, tiles_y);
 
   Image *preview = create_image(source->width, source->height);
-
   NgImage *ng_image = create_ng_image(tiles_x, tiles_y);
   ng_image->preview = preview;
 
-
   // First generate specific palettes for each tile:
-  Palette *palettes[MAX_TILES];
-  RGBA expanded_pixels[TILE_SIZE_EXP * TILE_SIZE_EXP];
   int palette_count = 0;
   for (int ty = 0; ty < tiles_y; ty++) {
     for (int tx = 0; tx < tiles_x; tx++) {
@@ -69,17 +85,15 @@ NgImage *convert_image(Image *source) {
   }
 
   // Next reduce number of palettes:
-  int merged_map[MAX_TILES] = {0};
   for (int i = 0; i < palette_count; i++) {
-    merged_map[i] = -1;
+    merged_palettes_map[i] = -1;
   }
-  reduce_palettes(palettes, palette_count, merged_map);
+  reduce_palettes(palettes, palette_count, merged_palettes_map);
 
   // Add unique palettes to ng image and track index mapping
-  int ng_palette_map[MAX_TILES];
-  for (int i = 0; i < MAX_TILES; i++) {
+  for (int i = 0; i < palette_count; i++) {
     // Only add palettes which have not been merged
-    if (merged_map[i] == i) {
+    if (merged_palettes_map[i] == i) {
       ng_palette_map[i] = ng_image->palette_count;
       ng_image->palettes[ng_image->palette_count++] = convert_palette(palettes[i]);
     }
@@ -87,25 +101,32 @@ NgImage *convert_image(Image *source) {
 
   // Now process each tile:
   int tile_index = 0;
-  RGBA tile_pixels[TILE_SIZE * TILE_SIZE];
-  uint8_t indexed_pixels[TILE_SIZE * TILE_SIZE];
   for (int ty = 0; ty < tiles_y; ty++) {
     for (int tx = 0; tx < tiles_x; tx++) {
       // Extract only the actual tile pixels now
       extract_tile_pixels(source, tx, ty, tile_pixels, 0);
       // Map palette indexes to pixels
-      int palette_index = merged_map[tile_index];
+      int palette_index = merged_palettes_map[tile_index];
       Palette *palette = palettes[palette_index];
       index_tile_pixels(tile_pixels, palette, DITHER, indexed_pixels);
 
-      // Add sprite data and add to map, currently sequential 1:1
-      // TODO: depdupe
-      ng_image->sprites[ng_image->sprite_count] = convert_sprite(indexed_pixels);
-      ng_image->sprite_map[ng_image->sprite_count] = ng_image->sprite_count;
-      ng_image->sprite_count++;
-
       // Add mapped palette index to map
       ng_image->palette_map[tile_index] = ng_palette_map[palette_index];
+
+      // Add sprite data and add indexes to map
+      // Check unqiueness
+      int hash = XXH64(indexed_pixels, TILE_SIZE * TILE_SIZE, 0);
+      int existing_index = existing_tile_index(hash, ng_image->sprite_count);
+      if (existing_index >= 0) {
+        // Reuse exisitng tile
+        ng_image->sprite_map[ng_image->sprite_count] = existing_index;
+      } else {
+        // Store new unique sprite
+        ng_image->sprites[ng_image->sprite_count] = convert_sprite(indexed_pixels);
+        ng_image->sprite_map[ng_image->sprite_count] = ng_image->sprite_count;
+        tile_hashes[ng_image->sprite_count] = hash;
+        ng_image->sprite_count++;
+      }
 
       // Copy indexed pixels to preview
       for (int y = 0; y < TILE_SIZE; y++) {
