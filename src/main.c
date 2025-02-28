@@ -1,8 +1,7 @@
 // TODO:
-// lossy palette reduction
-// pre-dither?
-// how to control dither? only on RGB?
-// make preview optional
+// lossy palette reduction if > 256 palettes
+// make PNG preview optional?
+// Parallelise?
 
 #include <stdint.h>
 #include <stdio.h>
@@ -24,8 +23,8 @@
 
 int verbose;
 
-// Extracts a tile from the image with optional border
-// This is used for palette generation, and reduces visible borders between tiles
+// Extracts RGBA pixels of a tile from the image with optional border
+// Border is used for palette generation, and reduces visible seams between tiles
 static void extract_tile_pixels(Image *source, int tile_x, int tile_y, RGBA pixels[], int border_size) {
   for (int y = -border_size; y < TILE_SIZE + border_size; y++) {
     for (int x = -border_size; x < TILE_SIZE + border_size; x++) {
@@ -92,10 +91,17 @@ NgImage *convert_image(Image *source) {
   NgImage *ng_image = create_ng_image(tiles_x, tiles_y);
   ng_image->preview = preview;
 
-  if (source->indexed) {
+  if (source->fixed_palette) {
     ng_image->palettes[ng_image->palette_count++] = convert_palette(source->palette);
 
   } else {
+#if DITHER
+    // Dither RGB images *before* palette generation
+	// We don't do this for indexed PNGs, even if we since converted them to RGB
+    if (!source->indexed)
+		apply_dithering(source);
+#endif
+
     // First generate specific palettes for each tile:
     int palette_count = 0;
     for (int ty = 0; ty < tiles_y; ty++) {
@@ -129,7 +135,7 @@ NgImage *convert_image(Image *source) {
     for (int tx = 0; tx < tiles_x; tx++) {
       Palette *palette;
 
-      if (source->indexed) {
+      if (source->fixed_palette) {
         // Use single fixed palette
         palette = source->palette;
         extract_tile_indices(source, tx, ty, indexed_pixels);
@@ -181,7 +187,7 @@ NgImage *convert_image(Image *source) {
 }
 
 // Create filenames for tile data and preview based on source file
-void generate_filenames(const char *source_file, const char *output_dir, char *tiles_file, char *preview_file) {
+static void generate_filenames(const char *source_file, const char *output_dir, char *tiles_file, char *preview_file) {
     char base[MAX_FILENAME_LEN];
     char *filename = strrchr(source_file, '/'); // Find last '/' for basename extraction
 

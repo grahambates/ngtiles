@@ -9,12 +9,12 @@
 #include "safe_mem.h"
 #include "log.h"
 
-Image *create_image(int width, int height, bool indexed) {
+Image *create_image(int width, int height, bool fixed_palette) {
   Image *image = safe_malloc(sizeof(Image));
   image->width = width;
   image->height = height;
-  image->indexed = indexed;
-  if (indexed) {
+  image->fixed_palette = fixed_palette;
+  if (fixed_palette) {
     image->pixel_indices = safe_malloc(width * height * sizeof(uint8_t));
   } else {
     image->pixels = safe_malloc(width * height * sizeof(RGBA));
@@ -67,11 +67,17 @@ Image *load_image(const char *filename) {
 
   verbose_log("%dx%d, color_type: %d, bit_depth: %d\n", width, height, color_type, bit_depth);
 
-  bool indexed = false;
+  bool indexed = false; // Track original indexed mode to affect dither behaviour, even if we convert it to RGB
+  bool fixed_palette = false;
   Palette *palette;
 
-  // Convert indexed and grayscale images to RGB
+  // Handle different colour modes
+
   if (color_type == PNG_COLOR_TYPE_PALETTE) {
+	// For indexed palettes, we can either use the existing fixed palette if it's small enough, or convert to RGB
+	// Either way we track the original mode, as this determines dither behaviour
+    indexed = true;
+
     // Get palette data
     png_colorp png_palette;
     int num_palette;
@@ -82,10 +88,11 @@ Image *load_image(const char *filename) {
       return NULL;
     }
 
+	// Check palette size
     if (num_palette <= NUM_COLORS) {
-      // Can use indexed mode if palette size <= 16
+      // Can use fixed palette mode if palette size <= 16
       verbose_log("Using fixed palette with %d colors\n", num_palette);
-      indexed = true;
+      fixed_palette = true;
       // Get palette colors, assume zero transparent
       palette = create_palette(0);
       for (int i = 1; i < num_palette; i++) {
@@ -101,6 +108,7 @@ Image *load_image(const char *filename) {
     }
   }
 
+  // Convert greyscale to RGBA
   if (color_type == PNG_COLOR_TYPE_GRAY || color_type == PNG_COLOR_TYPE_GRAY_ALPHA) {
     if (bit_depth < 8)
       png_set_expand_gray_1_2_4_to_8(png);
@@ -114,13 +122,16 @@ Image *load_image(const char *filename) {
   // Convert transparency chunks to alpha
   if (png_get_valid(png, info, PNG_INFO_tRNS)) png_set_tRNS_to_alpha(png);
 
-  // Convert all images to RGBA (8 bits per channel)
+  // Ensure bit depth is 8
   if (bit_depth == 16)
     png_set_strip_16(png); // Convert 16-bit to 8-bit
 
   png_read_update_info(png, info);
 
-  Image *image = create_image(width, height, indexed);
+  Image *image = create_image(width, height, fixed_palette);
+  image->indexed = indexed;
+
+  // Read the pixel data - either RGBA or indexed
 
   png_bytep *row_pointers = safe_malloc(sizeof(png_bytep) * height);
   for (int y = 0; y < height; y++) {
@@ -129,7 +140,7 @@ Image *load_image(const char *filename) {
   png_read_image(png, row_pointers);
 
   // Copy data to our image structure
-  if (indexed) {
+  if (fixed_palette) {
     image->palette = palette;
     for (int y = 0; y < height; y++) {
       for (int x = 0; x < width; x++) {

@@ -1,4 +1,5 @@
 #include "color_reduction.h"
+#include "colors.h"
 #include "safe_mem.h"
 #include "log.h"
 
@@ -178,12 +179,8 @@ static inline uint8_t clamp(int value) {
   return (value < 0) ? 0 : (value > 255) ? 255 : (uint8_t)value;
 }
 
-// Apply error diffusion to tile
-// This updates the surrounding pixel RGB values in the current tile data
-// TODO:
-// this would be better if it used a separate error buffer that covers the whole image
-// This way, errors would be carried over between tiles.
-static void apply_dithering(RGBA pixels[], int x, int y, RGBA *pixel, RGBA *best_color) {
+// Apply error diffusion to image
+void apply_dithering(Image *source) {
   // 1/16 | - # 7 |
   //      | 1 3 5 |
   const float right_weight = 7.0f/16.0f;
@@ -191,39 +188,49 @@ static void apply_dithering(RGBA pixels[], int x, int y, RGBA *pixel, RGBA *best
   const float bottom_weight = 3.0f/16.0f;
   const float bottom_right_weight = 5.0f/16.0f;
 
-  int error_r = pixel->r - best_color->r;
-  int error_g = pixel->g - best_color->g;
-  int error_b = pixel->b - best_color->b;
+  for (int y = 0; y < source->height; y++) {
+    for (int x = 0; x < source->width; x++) {
+      int offset = y * source->width + x;
+      RGBA pixel = source->pixels[offset];
+      RGBA quantized = quantize_rgb(pixel);
 
-  // Distribute error to right pixel
-  if (x + 1 < TILE_SIZE) {
-    RGBA *right = &pixels[y * TILE_SIZE + (x + 1)];
-    right->r = clamp(right->r + (int)(error_r * right_weight));
-    right->g = clamp(right->g + (int)(error_g * right_weight));
-    right->b = clamp(right->b + (int)(error_b * right_weight));
-  }
+      int error_r = pixel.r - quantized.r;
+      int error_g = pixel.g - quantized.g;
+      int error_b = pixel.b - quantized.b;
 
-  if (y + 1 < TILE_SIZE) {
-    // Distribute error to bottom-left pixel
-    if (x > 0) {
-      RGBA *bottom_left = &pixels[(y + 1) * TILE_SIZE + (x - 1)];
-      bottom_left->r = clamp(bottom_left->r + (int)(error_r * bottom_left_weight));
-      bottom_left->g = clamp(bottom_left->g + (int)(error_g * bottom_left_weight));
-      bottom_left->b = clamp(bottom_left->b + (int)(error_b * bottom_left_weight));
-    }
+      source->pixels[offset] = quantized;
 
-    // Distribute error to bottom pixel
-    RGBA *bottom = &pixels[(y + 1) * TILE_SIZE + x];
-    bottom->r = clamp(bottom->r + (int)(error_r * bottom_weight));
-    bottom->g = clamp(bottom->g + (int)(error_g * bottom_weight));
-    bottom->b = clamp(bottom->b + (int)(error_b * bottom_weight));
+      // Distribute error to right pixel
+      if (x + 1 < source->width) {
+        RGBA *right = &source->pixels[offset + 1];
+        right->r = clamp(right->r + (int)(error_r * right_weight));
+        right->g = clamp(right->g + (int)(error_g * right_weight));
+        right->b = clamp(right->b + (int)(error_b * right_weight));
+      }
 
-    // Distribute error to bottom-right pixel
-    if (x + 1 < TILE_SIZE) {
-      RGBA *bottom_right = &pixels[(y + 1) * TILE_SIZE + (x + 1)];
-      bottom_right->r = clamp(bottom_right->r + (int)(error_r * bottom_right_weight));
-      bottom_right->g = clamp(bottom_right->g + (int)(error_g * bottom_right_weight));
-      bottom_right->b = clamp(bottom_right->b + (int)(error_b * bottom_right_weight));
+      if (y + 1 < source->height) {
+        // Distribute error to bottom-left pixel
+        if (x > 0) {
+          RGBA *bottom_left = &source->pixels[offset + source->width - 1];
+          bottom_left->r = clamp(bottom_left->r + (int)(error_r * bottom_left_weight));
+          bottom_left->g = clamp(bottom_left->g + (int)(error_g * bottom_left_weight));
+          bottom_left->b = clamp(bottom_left->b + (int)(error_b * bottom_left_weight));
+        }
+
+        // Distribute error to bottom pixel
+        RGBA *bottom = &source->pixels[offset + source->width];
+        bottom->r = clamp(bottom->r + (int)(error_r * bottom_weight));
+        bottom->g = clamp(bottom->g + (int)(error_g * bottom_weight));
+        bottom->b = clamp(bottom->b + (int)(error_b * bottom_weight));
+
+        // Distribute error to bottom-right pixel
+        if (x + 1 < source->width) {
+          RGBA *bottom_right = &source->pixels[offset + source->width + 1];
+          bottom_right->r = clamp(bottom_right->r + (int)(error_r * bottom_right_weight));
+          bottom_right->g = clamp(bottom_right->g + (int)(error_g * bottom_right_weight));
+          bottom_right->b = clamp(bottom_right->b + (int)(error_b * bottom_right_weight));
+        }
+      }
     }
   }
 }
@@ -241,24 +248,7 @@ void index_tile_pixels(RGBA pixels[], Palette *palette, int dither, uint8_t inde
       }
 
       // Find closest palette color
-      int best_index = find_closest_palette_color(pixel, palette);
-      RGBA best_color = palette->entries[best_index];
-
-      // Add additional dither colors if we have free slots
-      if (dither && palette->count < NUM_COLORS) {
-        RGBA actual_color = quantize_rgb(*pixel);
-        if (!same_color(&best_color, &actual_color)) {
-          best_color = actual_color;
-          best_index = palette->count;
-          add_to_palette(palette, &actual_color);
-        }
-      }
-
-      indexed_pixels[y * TILE_SIZE + x] = best_index;
-
-      if (dither) {
-        apply_dithering(pixels, x, y, pixel, &best_color);
-      }
+      indexed_pixels[y * TILE_SIZE + x] = find_closest_palette_color(pixel, palette);
     }
   }
 }
