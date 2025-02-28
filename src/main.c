@@ -95,12 +95,10 @@ NgImage *convert_image(Image *source) {
     ng_image->palettes[ng_image->palette_count++] = convert_palette(source->palette);
 
   } else {
-#if DITHER
     // Dither RGB images *before* palette generation
 	// We don't do this for indexed PNGs, even if we since converted them to RGB
     if (!source->indexed)
 		apply_dithering(source);
-#endif
 
     // First generate specific palettes for each tile:
     int palette_count = 0;
@@ -145,7 +143,7 @@ NgImage *convert_image(Image *source) {
         // Map palette indices to pixels
         int palette_index = merged_palettes_map[tile_index];
         palette = palettes[palette_index];
-        index_tile_pixels(tile_pixels, palette, DITHER, indexed_pixels);
+        index_tile_pixels(tile_pixels, palette, indexed_pixels);
 
         // Add mapped palette index to map
         ng_image->palette_map[tile_index] = ng_palette_map[palette_index];

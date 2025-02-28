@@ -236,7 +236,7 @@ void apply_dithering(Image *source) {
 }
 
 // Get closest palette index for each pixel in image
-void index_tile_pixels(RGBA pixels[], Palette *palette, int dither, uint8_t indexed_pixels[]) {
+void index_tile_pixels(RGBA pixels[], Palette *palette, uint8_t indexed_pixels[]) {
   for (int y = 0; y < TILE_SIZE; y++) {
     for (int x = 0; x < TILE_SIZE; x++) {
       RGBA *pixel = &pixels[y * TILE_SIZE + x];
