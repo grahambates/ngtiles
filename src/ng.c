@@ -13,6 +13,7 @@ NgImage *create_ng_image(int w, int h) {
   ng_image->sprites = safe_malloc(MAX_SPRITES * sizeof(uint8_t *));
   ng_image->sprite_map = safe_malloc(MAX_TILES * sizeof(uint16_t));
   ng_image->palette_map = safe_malloc(MAX_TILES * sizeof(uint16_t));
+  ng_image->preview = NULL;
   return ng_image;
 }
 
