@@ -24,12 +24,10 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config libpng-dev
 
-      # Skip installation on macOS (already installed on GitHub runners)
-      - name: Verify dependencies (macOS)
+      # macOS Dependencies
+      - name: Install dependencies (macOS)
         if: runner.os == 'macOS'
-        run: |
-          pkg-config --modversion libpng
-          echo "macOS dependencies already available."
+        run: brew install pkg-config libpng
 
       # Windows Dependencies (Using MSYS2)
       - name: Set up MSYS2
@@ -41,7 +39,6 @@ jobs:
             mingw-w64-x86_64-toolchain
             mingw-w64-x86_64-pkg-config
             mingw-w64-x86_64-libpng
-            make
 
       - name: Set up environment variables (Windows)
         if: runner.os == 'Windows'
@@ -50,29 +47,15 @@ jobs:
           echo "PKG_CONFIG_PATH=/mingw64/lib/pkgconfig" >> $GITHUB_ENV
           echo "PATH=/mingw64/bin:$PATH" >> $GITHUB_ENV
 
-      - name: Build on Linux/macOS
-        if: runner.os != 'Windows'
-        run: make
+      - name: Test
+        shell: msys2 {0}
+        run: make test
 
-      - name: Build on Windows
-        if: runner.os == 'Windows'
+      - name: Build project
         shell: msys2 {0}
         run: make
 
-      - name: Copy required DLLs (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          ldd bin/ngtiles.exe | grep mingw64 | awk '{print $3}' | xargs -I {} cp {} bin/
-
-      - name: Upload Windows artifact (with DLLs)
-        if: runner.os == 'Windows'
-        uses: actions/upload-artifact@v4
-        with:
-          name: ngtiles-windows
-          path: bin/*
-
-      - name: Upload Linux/macOS artifact
-        if: runner.os != 'Windows'
+      - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         with:
           name: ngtiles-${{ runner.os }}
