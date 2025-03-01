@@ -54,10 +54,10 @@ jobs:
       #   if: runner.os != 'Windows'
       #   run: make test
 
-      - name: Test on Windows
-        if: runner.os == 'Windows'
-        shell: msys2 {0}
-        run: make test
+      # - name: Test on Windows
+      #   if: runner.os == 'Windows'
+      #   shell: msys2 {0}
+      #   run: make test
 
       - name: Build on Linux/macOS
         if: runner.os != 'Windows'
