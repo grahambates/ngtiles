@@ -15,8 +15,10 @@ Image *create_image(int width, int height, bool fixed_palette) {
   image->height = height;
   image->fixed_palette = fixed_palette;
   if (fixed_palette) {
+    image->pixels = NULL;
     image->pixel_indices = safe_malloc(width * height * sizeof(uint8_t));
   } else {
+    image->pixel_indices = NULL;
     image->pixels = safe_malloc(width * height * sizeof(RGBA));
   }
   return image;
