@@ -5,6 +5,8 @@
 
 #include "log.h"
 
+int verbose;
+
 void verbose_log(const char *format, ...) {
   if (!verbose)
     return;

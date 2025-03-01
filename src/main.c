@@ -21,8 +21,6 @@
 #include "palette_merging.h"
 #include "xxhash.h"
 
-int verbose;
-
 // Extracts RGBA pixels of a tile from the image with optional border
 // Border is used for palette generation, and reduces visible seams between tiles
 static void extract_tile_pixels(Image *source, int tile_x, int tile_y, RGBA pixels[], int border_size) {
