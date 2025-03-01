@@ -24,10 +24,12 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config libpng-dev
 
-      # macOS Dependencies
-      - name: Install dependencies (macOS)
+      # Skip installation on macOS (already installed on GitHub runners)
+      - name: Verify dependencies (macOS)
         if: runner.os == 'macOS'
-        run: brew install pkg-config libpng
+        run: |
+          pkg-config --modversion libpng
+          echo "macOS dependencies already available."
 
       # Windows Dependencies (Using MSYS2)
       - name: Set up MSYS2
@@ -39,6 +41,7 @@ jobs:
             mingw-w64-x86_64-toolchain
             mingw-w64-x86_64-pkg-config
             mingw-w64-x86_64-libpng
+            make
 
       - name: Set up environment variables (Windows)
         if: runner.os == 'Windows'
@@ -47,11 +50,21 @@ jobs:
           echo "PKG_CONFIG_PATH=/mingw64/lib/pkgconfig" >> $GITHUB_ENV
           echo "PATH=/mingw64/bin:$PATH" >> $GITHUB_ENV
 
-      - name: Test
+      - name: Test on Linux/macOS
+        if: runner.os != 'Windows'
+        run: make test
+
+      - name: Test on Windows
+        if: runner.os == 'Windows'
         shell: msys2 {0}
         run: make test
 
-      - name: Build project
+      - name: Build on Linux/macOS
+        if: runner.os != 'Windows'
+        run: make
+
+      - name: Build on Windows
+        if: runner.os == 'Windows'
         shell: msys2 {0}
         run: make
 
