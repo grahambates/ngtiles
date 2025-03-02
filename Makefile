@@ -2,6 +2,9 @@
 OS := $(shell uname -s)
 PKG_CONFIG := pkg-config
 
+# Build type (default to release)
+BUILD ?= release
+
 # Target binary
 TARGET := bin/ngtiles
 TEST_TARGET := bin/tests
@@ -14,6 +17,14 @@ CC ?= gcc
 CFLAGS := -Wall -Wextra -std=c11 -MMD -MP -Iinclude -Ilib
 CFLAGS += $(shell $(PKG_CONFIG) --cflags $(LIBS))
 LDLIBS := $(shell $(PKG_CONFIG) --libs $(LIBS)) -lm
+
+# Debug/Release-specific flags
+ifeq ($(BUILD), debug)
+    CFLAGS += -g -O0 -fsanitize=address,undefined
+    LDLIBS += -fsanitize=address,undefined
+else
+    CFLAGS += -O2 -DNDEBUG
+endif
 
 # Source and object files
 SRCS := $(wildcard src/*.c)
