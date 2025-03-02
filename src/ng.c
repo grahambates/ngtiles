@@ -67,7 +67,7 @@ static const uint8_t bit_reversal_table[256] = {
 
 // Convert indexed data to Neo Geo sprite layout
 // see https://wiki.neogeodev.org/index.php?title=Sprite_graphics_format
-uint8_t* convert_sprite(uint8_t indexed_pixels[]) {
+uint8_t* convert_sprite(const uint8_t indexed_pixels[]) {
   uint8_t *result = safe_malloc(SPRITE_SIZE);
   int index = 0;
   for (int x = 8; x >= 0; x -= 8) {
@@ -103,7 +103,7 @@ static inline uint16_t rgb_to_ng(RGBA color) {
 }
 
 // Convert palette to native NeoGeo format
-uint16_t *convert_palette(Palette *palette) {
+uint16_t *convert_palette(const Palette *palette) {
   uint16_t *ng_palette = safe_calloc(NUM_COLORS, sizeof(uint16_t));
   for (int i = 0; i < palette->count; i++) {
     ng_palette[i] = rgb_to_ng(palette->entries[i]);

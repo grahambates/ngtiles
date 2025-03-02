@@ -18,10 +18,10 @@ typedef struct Image {
 
 Image *create_image(int width, int height, bool fixed_palette);
 
-void free_image(Image *image);
-
 Image *load_image(const char *filename);
 
-int save_image(const char *filename, Image *image);
+void free_image(Image *image);
 
-#endif
+int save_image(const char *filename, const Image *image);
+
+#endif // IMAGE_H

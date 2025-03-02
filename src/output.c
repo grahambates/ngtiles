@@ -10,7 +10,7 @@
 static inline uint16_t swap16(uint16_t val) { return (val >> 8) | (val << 8); }
 
 // Write NgImage tiles data (palette + mappings) to disk
-int save_tiles(char *filename, NgImage *image, int offset) {
+int save_tiles(const char *filename, const NgImage *image, int offset) {
   // UWORD palette_count;                     Number of palette entries
   // UWORD palette_entries[palette_count*16]; Color values in NG format
   // UWORD tile_width;                        Width of image in tiles
@@ -48,7 +48,7 @@ int save_tiles(char *filename, NgImage *image, int offset) {
 }
 
 // Helper to write ROM with file pattern
-static int write_rom_file(char *pattern, char *rom_dir, void *data) {
+static int write_rom_file(const char *pattern, const char *rom_dir, void *data) {
     char filename[MAX_FILENAME_LEN];
     snprintf(filename, MAX_FILENAME_LEN, pattern, rom_dir);
     printf("  %s\n", filename);
@@ -62,7 +62,7 @@ static int write_rom_file(char *pattern, char *rom_dir, void *data) {
 }
 
 // Save combined sprite graphics data to roms directory
-int save_roms(uint8_t rom_data[], char *rom_dir) {
+int save_roms(const uint8_t rom_data[], const char *rom_dir) {
   // Split into odd/even ROMs
   uint8_t *char1 = safe_malloc(ROM_SIZE/2);
   uint8_t *char2 = safe_malloc(ROM_SIZE/2);

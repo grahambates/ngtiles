@@ -35,19 +35,19 @@ static void add_to_box(Box *box, RGBA pixel) {
   }
 }
 
-static RGBA get_box_average(Box *box) {
-    RGBA avg = {0, 0, 0, 0xff};
-    if (box->count == 0) return avg;
-    unsigned long r = 0, g = 0, b = 0;
-    for (int i = 0; i < box->count; i++) {
-        r += box->pixels[i].r;
-        g += box->pixels[i].g;
-        b += box->pixels[i].b;
-    }
-    avg.r = (uint8_t)(r / box->count);
-    avg.g = (uint8_t)(g / box->count);
-    avg.b = (uint8_t)(b / box->count);
-    return avg;
+static RGBA get_box_average(const Box *box) {
+  RGBA avg = {0, 0, 0, 0xff};
+  if (box->count == 0) return avg;
+  unsigned long r = 0, g = 0, b = 0;
+  for (int i = 0; i < box->count; i++) {
+    r += box->pixels[i].r;
+    g += box->pixels[i].g;
+    b += box->pixels[i].b;
+  }
+  avg.r = (uint8_t)(r / box->count);
+  avg.g = (uint8_t)(g / box->count);
+  avg.b = (uint8_t)(b / box->count);
+  return avg;
 }
 
 static void free_box(Box *box) {
@@ -67,7 +67,7 @@ int compare_blue(const void *a, const void *b) {
 }
 
 // Get optimal <=16 color palette for tile
-Palette *create_palette_from_tile(RGBA tile_pixels[], int index) {
+Palette *create_palette_from_tile(const RGBA tile_pixels[], int index) {
   Palette *palette = create_palette(index);
 
   // Initialize first box with all pixels
@@ -236,10 +236,10 @@ void apply_dithering(Image *source) {
 }
 
 // Get closest palette index for each pixel in image
-void index_tile_pixels(RGBA pixels[], Palette *palette, uint8_t indexed_pixels[]) {
+void index_tile_pixels(const RGBA pixels[], const Palette *palette, uint8_t indexed_pixels[]) {
   for (int y = 0; y < TILE_SIZE; y++) {
     for (int x = 0; x < TILE_SIZE; x++) {
-      RGBA *pixel = &pixels[y * TILE_SIZE + x];
+      const RGBA *pixel = &pixels[y * TILE_SIZE + x];
 
       // Fixed index for transparent pixels
       if (pixel->a == 0) {

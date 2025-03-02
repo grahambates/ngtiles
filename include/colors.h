@@ -30,25 +30,20 @@ static inline int same_color(RGBA *a, RGBA *b) {
 
 Palette *create_palette(int index);
 
-int add_to_palette(Palette *palette, RGBA *color);
+int add_to_palette(Palette *palette, const RGBA *color);
 
-int palette_contains(Palette *palette, RGBA *color);
+bool palette_contains(const Palette *palette, const RGBA *color);
 
-bool palette_contains_hash(Palette *p, uint32_t color_hash);
+bool palette_contains_hash(const Palette *p, uint32_t color_hash);
 
-int shared_colors(Palette *a, Palette *b);
+int shared_colors(const Palette *a, const Palette *b);
 
-void print_palette(Palette *palette);
+void print_palette(const Palette *palette);
 
-int find_closest_palette_color(RGBA *pixel, Palette *palette);
-
-
-uint32_t color_hash(RGBA c);
-
-int same_color(RGBA *a, RGBA *b);
+int find_closest_palette_color(const RGBA *pixel, const Palette *palette);
 
 float color_distance(RGBA a, RGBA b);
 
-RGBA quantize_rgb(RGBA color);
+RGBA quantize_rgb(const RGBA color);
 
-#endif
+#endif // COLORS_H

@@ -20,7 +20,7 @@ LDLIBS := $(shell $(PKG_CONFIG) --libs $(LIBS)) -lm
 
 # Debug/Release-specific flags
 ifeq ($(BUILD), debug)
-    CFLAGS += -g -O0 -fsanitize=address,undefined
+    CFLAGS += -g3 -O0 -fsanitize=address,undefined
     LDLIBS += -fsanitize=address,undefined
 else
     CFLAGS += -O2 -DNDEBUG

@@ -171,7 +171,7 @@ Image *load_image(const char *filename) {
 }
 
 // Save png file
-int save_image(const char *filename, Image *image) {
+int save_image(const char *filename, const Image *image) {
   FILE *fp = fopen(filename, "wb");
   if (!fp) {
     error_log("Failed to create image %s: %s\n", filename, strerror(errno));

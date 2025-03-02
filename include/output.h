@@ -3,7 +3,7 @@
 
 #include "ng.h"
 
-int save_tiles(char *filename, NgImage *image, int offset);
-int save_roms(uint8_t rom_data[], char *rom_dir);
+int save_tiles(const char *filename, const NgImage *image, int offset);
+int save_roms(const uint8_t rom_data[], const char *rom_dir);
 
-#endif
+#endif // OUTPUT_H

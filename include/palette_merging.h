@@ -5,4 +5,4 @@
 
 void reduce_palettes(Palette *palettes[], int palette_count, int *merged);
 
-#endif
+#endif // PALETE_MERGING_H

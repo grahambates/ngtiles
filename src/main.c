@@ -23,7 +23,7 @@
 
 // Extracts RGBA pixels of a tile from the image with optional border
 // Border is used for palette generation, and reduces visible seams between tiles
-static void extract_tile_pixels(Image *source, int tile_x, int tile_y, RGBA pixels[], int border_size) {
+static void extract_tile_pixels(const Image *source, int tile_x, int tile_y, RGBA pixels[], int border_size) {
   for (int y = -border_size; y < TILE_SIZE + border_size; y++) {
     for (int x = -border_size; x < TILE_SIZE + border_size; x++) {
       int sx = tile_x * TILE_SIZE + x;
@@ -42,7 +42,7 @@ static void extract_tile_pixels(Image *source, int tile_x, int tile_y, RGBA pixe
 }
 
 // Extracts indices for a tile using image's fixed palette
-static void extract_tile_indices(Image *source, int tile_x, int tile_y, uint8_t indices[]) {
+static void extract_tile_indices(const Image *source, int tile_x, int tile_y, uint8_t indices[]) {
   for (int y = 0; y < TILE_SIZE; y++) {
     for (int x = 0; x < TILE_SIZE; x++) {
       int sx = tile_x * TILE_SIZE + x;

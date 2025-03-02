@@ -15,4 +15,4 @@
 #define ROM_SIZE 0x1000000
 #define SPRITE_SIZE (TILE_SIZE*TILE_SIZE/2) // Two px per byte
 
-#endif
+#endif // CONSTS_H

@@ -55,7 +55,8 @@ void reduce_palettes(Palette *palettes[], int palette_count, int *merged) {
     queue_size--;
     for (int i = 0; i < queue_size; i++) queue[i] = queue[i + 1];
 
-    if (merged[best_a] >= 0 || merged[best_b] >= 0 || queue[0].score == 0) continue; // Skip already merged palettes
+    if (merged[best_a] >= 0 || merged[best_b] >= 0 || queue[0].score == 0)
+      continue; // Skip already merged palettes
 
     verbose_log("Best merge: %d + %d (score: %d)\n", best_a, best_b, queue[0].score);
     merged[best_a] = best_b;  // Track merging

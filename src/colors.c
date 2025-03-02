@@ -14,7 +14,7 @@ Palette *create_palette(int index) {
 }
 
 // Add an RGBA colour to a palette, updating count and hash
-int add_to_palette(Palette *palette, RGBA *color) {
+int add_to_palette(Palette *palette, const RGBA *color) {
   if (palette->count == NUM_COLORS) return 1;
   palette->hash_set[palette->count] = color_hash(*color);
   palette->entries[palette->count++] = *color;
@@ -22,34 +22,28 @@ int add_to_palette(Palette *palette, RGBA *color) {
 }
 
 // Check whether palette contians a given colour
-int palette_contains(Palette *palette, RGBA *color) {
-  uint32_t hash = color_hash(*color);
-  for (int i = 0; i < palette->count; i++) {
-    if (hash == palette->hash_set[i]) {
-      return true;
-    }
+bool palette_contains(const Palette *p, const RGBA *color) {
+  return palette_contains_hash(p, color_hash(*color));
+}
+
+// Check if a color exists in a palette
+bool palette_contains_hash(const Palette *p, uint32_t color_hash) {
+  for (int i = 0; i < p->count; i++) {
+    if (p->hash_set[i] == color_hash) return true;
   }
   return false;
 }
 
-// Check if a color exists in a palette
-bool palette_contains_hash(Palette *p, uint32_t color_hash) {
-    for (int i = 0; i < p->count; i++) {
-        if (p->hash_set[i] == color_hash) return true;
-    }
-    return false;
-}
-
 // Count shared colors between two palettes
-int shared_colors(Palette *a, Palette *b) {
-    int count = 0;
-    for (int i = 0; i < a->count; i++) {
-        if (palette_contains_hash(b, a->hash_set[i])) count++;
-    }
-    return count;
+int shared_colors(const Palette *a, const Palette *b) {
+  int count = 0;
+  for (int i = 0; i < a->count; i++) {
+    if (palette_contains_hash(b, a->hash_set[i])) count++;
+  }
+  return count;
 }
 
-void print_palette(Palette *palette) {
+void print_palette(const Palette *palette) {
   for (int i = 1; i < palette->count; i++)
     printf("%02x%02x%02x ", palette->entries[i].r, palette->entries[i].g, palette->entries[i].b);
   printf("\n");
@@ -63,7 +57,7 @@ float color_distance(RGBA a, RGBA b) {
   return dr * dr + dg * dg + db * db;
 }
 
-int find_closest_palette_color(RGBA *pixel, Palette *palette) {
+int find_closest_palette_color(const RGBA *pixel, const Palette *palette) {
   int best_index = 1;
   double best_distance = INFINITY;
   for (int i = 1; i < palette->count; i++) {
@@ -77,7 +71,7 @@ int find_closest_palette_color(RGBA *pixel, Palette *palette) {
 }
 
 // Quantise RGB to NeoGeo colour depth
-RGBA quantize_rgb(RGBA color) {
+RGBA quantize_rgb(const RGBA color) {
   // 5 bits per channel
   uint8_t r = color.r >> 3;
   uint8_t g = color.g >> 3;
