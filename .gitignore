@@ -1,4 +1,4 @@
-ngtiles
+bin/*
 .cache
 .vscode
 *.o
