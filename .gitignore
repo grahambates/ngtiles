@@ -4,5 +4,6 @@ ngtiles
 *.o
 *.d
 *.png
+*.tiles
 .DS_Store
 compile_commands.json
