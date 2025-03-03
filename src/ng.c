@@ -7,11 +7,9 @@ NgImage *create_ng_image(int w, int h) {
   ng_image->tile_width = w;
   ng_image->tile_height = h;
   ng_image->tile_count = w * h;
-  ng_image->sprite_count = 0;
   ng_image->palette_count = 0;
   ng_image->palettes = safe_malloc(MAX_PALETTES * sizeof(uint16_t *));
-  ng_image->sprites = safe_malloc(MAX_SPRITES * sizeof(uint8_t *));
-  ng_image->sprite_map = safe_malloc(MAX_TILES * sizeof(uint16_t));
+  ng_image->tile_map = safe_malloc(MAX_TILES * sizeof(uint16_t));
   ng_image->palette_map = safe_malloc(MAX_TILES * sizeof(uint16_t));
   ng_image->preview = NULL;
   return ng_image;
@@ -21,10 +19,7 @@ void free_ng_image(NgImage *image) {
   for (int i = 0; i < image->palette_count; i++) {
     free(image->palettes[i]);
   }
-  for (int i = 0; i < image->sprite_count; i++) {
-    free(image->sprites[i]);
-  }
-  free(image->sprite_map);
+  free(image->tile_map);
   free(image->palettes);
   if (image->preview) free_image(image->preview);
   free(image);
@@ -65,10 +60,9 @@ static const uint8_t bit_reversal_table[256] = {
   0x1f, 0x9f, 0x5f, 0xdf, 0x3f, 0xbf, 0x7f, 0xff
 };
 
-// Convert indexed data to Neo Geo sprite layout
+// Convert indexed data to Neo Geo tiles layout
 // see https://wiki.neogeodev.org/index.php?title=Sprite_graphics_format
-uint8_t* convert_sprite(const uint8_t indexed_pixels[]) {
-  uint8_t *result = safe_malloc(SPRITE_SIZE);
+void convert_tile(const uint8_t indexed_pixels[], uint8_t *tile_ptr) {
   int index = 0;
   for (int x = 8; x >= 0; x -= 8) {
     for (int y = 0; y < 16; y++) {
@@ -82,13 +76,12 @@ uint8_t* convert_sprite(const uint8_t indexed_pixels[]) {
         if (pixel & 8) plane4 |= (1 << bitpos);
         bitpos--;
       }
-      result[index++] = bit_reversal_table[plane1];
-      result[index++] = bit_reversal_table[plane3];
-      result[index++] = bit_reversal_table[plane2];
-      result[index++] = bit_reversal_table[plane4];
+      tile_ptr[index++] = bit_reversal_table[plane1];
+      tile_ptr[index++] = bit_reversal_table[plane3];
+      tile_ptr[index++] = bit_reversal_table[plane2];
+      tile_ptr[index++] = bit_reversal_table[plane4];
     }
   }
-  return result;
 }
 
 // Convert quantised RGB to NeoGeo native bit order

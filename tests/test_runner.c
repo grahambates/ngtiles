@@ -24,7 +24,7 @@ extern void test_index_tile_pixels(void);
 // Declare test functions from test_ng.c
 extern void test_create_ng_image(void);
 extern void test_free_ng_image(void);
-extern void test_convert_sprite(void);
+extern void test_convert_tile(void);
 extern void test_convert_palette(void);
 
 // Setup and teardown functions
@@ -55,7 +55,7 @@ int main(void) {
     // Run tests from test_ng.c
     RUN_TEST(test_create_ng_image);
     RUN_TEST(test_free_ng_image);
-    RUN_TEST(test_convert_sprite);
+    RUN_TEST(test_convert_tile);
     RUN_TEST(test_convert_palette);
     return UNITY_END();
 }

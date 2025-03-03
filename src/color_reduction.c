@@ -72,9 +72,9 @@ Palette *create_palette_from_tile(const RGBA tile_pixels[], int index) {
 
   // Initialize first box with all pixels
   Box **boxes = safe_malloc(NUM_BOXES * sizeof(Box *));
-  boxes[0] = create_box(TILE_SIZE_EXP * TILE_SIZE_EXP);
+  boxes[0] = create_box(TILE_PX_EXP);
   int err = 0;
-  for (int i = 0; i < TILE_SIZE_EXP * TILE_SIZE_EXP; i++) {
+  for (int i = 0; i < TILE_PX_EXP; i++) {
     add_to_box(boxes[0], tile_pixels[i]);
     // Also try to build a single palette, and track whether it's full
     if (!err && tile_pixels[i].a > 0) {
@@ -237,18 +237,18 @@ void apply_dithering(Image *source) {
 
 // Get closest palette index for each pixel in image
 void index_tile_pixels(const RGBA pixels[], const Palette *palette, uint8_t indexed_pixels[]) {
-  for (int y = 0; y < TILE_SIZE; y++) {
-    for (int x = 0; x < TILE_SIZE; x++) {
-      const RGBA *pixel = &pixels[y * TILE_SIZE + x];
+  for (int y = 0; y < TILE_SPAN; y++) {
+    for (int x = 0; x < TILE_SPAN; x++) {
+      const RGBA *pixel = &pixels[y * TILE_SPAN + x];
 
       // Fixed index for transparent pixels
       if (pixel->a == 0) {
-        indexed_pixels[y * TILE_SIZE + x] = 0;
+        indexed_pixels[y * TILE_SPAN + x] = 0;
         continue;
       }
 
       // Find closest palette color
-      indexed_pixels[y * TILE_SIZE + x] = find_closest_palette_color(pixel, palette);
+      indexed_pixels[y * TILE_SPAN + x] = find_closest_palette_color(pixel, palette);
     }
   }
 }

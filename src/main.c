@@ -12,7 +12,6 @@
 
 #include "consts.h"
 #include "log.h"
-#include "safe_mem.h"
 #include "colors.h"
 #include "image.h"
 #include "ng.h"
@@ -24,11 +23,11 @@
 // Extracts RGBA pixels of a tile from the image with optional border
 // Border is used for palette generation, and reduces visible seams between tiles
 static void extract_tile_pixels(const Image *source, int tile_x, int tile_y, RGBA pixels[], int border_size) {
-  for (int y = -border_size; y < TILE_SIZE + border_size; y++) {
-    for (int x = -border_size; x < TILE_SIZE + border_size; x++) {
-      int sx = tile_x * TILE_SIZE + x;
-      int sy = tile_y * TILE_SIZE + y;
-      int offset = (y + border_size) * (TILE_SIZE+2*border_size) + (x + border_size);
+  for (int y = -border_size; y < TILE_SPAN + border_size; y++) {
+    for (int x = -border_size; x < TILE_SPAN + border_size; x++) {
+      int sx = tile_x * TILE_SPAN + x;
+      int sy = tile_y * TILE_SPAN + y;
+      int offset = (y + border_size) * (TILE_SPAN+2*border_size) + (x + border_size);
 
       // Ensure within bounds
       if (sx >= 0 && sx < source->width && sy >= 0 && sy < source->height) {
@@ -43,11 +42,11 @@ static void extract_tile_pixels(const Image *source, int tile_x, int tile_y, RGB
 
 // Extracts indices for a tile using image's fixed palette
 static void extract_tile_indices(const Image *source, int tile_x, int tile_y, uint8_t indices[]) {
-  for (int y = 0; y < TILE_SIZE; y++) {
-    for (int x = 0; x < TILE_SIZE; x++) {
-      int sx = tile_x * TILE_SIZE + x;
-      int sy = tile_y * TILE_SIZE + y;
-      int offset = y * TILE_SIZE + x;
+  for (int y = 0; y < TILE_SPAN; y++) {
+    for (int x = 0; x < TILE_SPAN; x++) {
+      int sx = tile_x * TILE_SPAN + x;
+      int sy = tile_y * TILE_SPAN + y;
+      int offset = y * TILE_SPAN + x;
       // Ensure within bounds
       if (sx >= 0 && sx < source->width && sy >= 0 && sy < source->height) {
         indices[offset] = source->pixel_indices[sy * source->width + sx];
@@ -59,7 +58,9 @@ static void extract_tile_indices(const Image *source, int tile_x, int tile_y, ui
   }
 }
 
+static uint8_t tile_rom_data[ROM_SIZE] = {0};
 static int tile_hashes[MAX_TILES];
+static int tile_count = 1; // first tile should always be blank
 
 // Gets the index of an identical tile, if one exists
 static int existing_tile_index(int hash, int tile_count) {
@@ -71,18 +72,25 @@ static int existing_tile_index(int hash, int tile_count) {
   return -1;
 }
 
+// Used to track indexes of merged palettes in reduce_palettes,
+// and eventually becomes a map of tile index -> palettes index
 static int merged_palettes_map[MAX_TILES];
+// Maps index in palettes (which contains duplicates) to unique palette indexes in ng_image
 static int ng_palette_map[MAX_TILES];
+// Palettes for the current image
 static Palette *palettes[MAX_TILES];
-static RGBA expanded_pixels[TILE_SIZE_EXP * TILE_SIZE_EXP];
-static RGBA tile_pixels[TILE_SIZE * TILE_SIZE];
-static uint8_t indexed_pixels[TILE_SIZE * TILE_SIZE];
+// Pixels for the extended tile, used for palette generation
+static RGBA expanded_pixels[TILE_PX_EXP];
+// Pixels for the current tile being extracted
+static RGBA tile_pixels[TILE_PX];
+// Palette index per pixel in the current tile
+static uint8_t indexed_pixels[TILE_PX];
 
 // Convert source image to NgImage structure
 NgImage *convert_image(Image *source) {
   // Calculate number of tiles
-  int tiles_x = (source->width + TILE_SIZE - 1) / TILE_SIZE;
-  int tiles_y = (source->height + TILE_SIZE - 1) / TILE_SIZE;
+  int tiles_x = (source->width + TILE_SPAN - 1) / TILE_SPAN;
+  int tiles_y = (source->height + TILE_SPAN - 1) / TILE_SPAN;
   verbose_log("Splitting into %dx%d tiles\n", tiles_x, tiles_y);
 
   Image *preview = create_image(source->width, source->height, false);
@@ -125,7 +133,7 @@ NgImage *convert_image(Image *source) {
     }
   }
 
-  // Now process each tile:
+  // now process each tile:
   int tile_index = 0;
   for (int tx = 0; tx < tiles_x; tx++) {
     for (int ty = 0; ty < tiles_y; ty++) {
@@ -147,28 +155,29 @@ NgImage *convert_image(Image *source) {
         ng_image->palette_map[tile_index] = ng_palette_map[palette_index];
       }
 
-      // Add sprite data and add indices to map
+      // Add tile data and add indices to map
       // Check unqiueness
-      int hash = XXH64(indexed_pixels, TILE_SIZE * TILE_SIZE, 0);
-      int existing_index = existing_tile_index(hash, ng_image->sprite_count);
+      int hash = XXH64(indexed_pixels, TILE_PX, 0);
+      int existing_index = existing_tile_index(hash, tile_count);
       if (existing_index >= 0) {
-        // Reuse exisitng tile
-        ng_image->sprite_map[ng_image->sprite_count] = existing_index;
+        // Reuse existing tile
+        ng_image->tile_map[tile_count] = existing_index;
       } else {
-        // Store new unique sprite
-        ng_image->sprites[ng_image->sprite_count] = convert_sprite(indexed_pixels);
-        ng_image->sprite_map[ng_image->sprite_count] = ng_image->sprite_count;
-        tile_hashes[ng_image->sprite_count] = hash;
-        ng_image->sprite_count++;
+        // Store new unique tile
+        uint8_t *tile_ptr = &tile_rom_data[tile_count * TILE_SIZE];
+        convert_tile(indexed_pixels, tile_ptr);
+        tile_hashes[tile_count] = hash;
+        ng_image->tile_map[tile_index] = tile_count;
+        tile_count++;
       }
 
       // Copy indexed pixels to preview
-      for (int y = 0; y < TILE_SIZE; y++) {
-        for (int x = 0; x < TILE_SIZE; x++) {
-          int dst_x = tx * TILE_SIZE + x;
-          int dst_y = ty * TILE_SIZE + y;
+      for (int y = 0; y < TILE_SPAN; y++) {
+        for (int x = 0; x < TILE_SPAN; x++) {
+          int dst_x = tx * TILE_SPAN + x;
+          int dst_y = ty * TILE_SPAN + y;
           if (dst_x < preview->width && dst_y < preview->height) {
-            preview->pixels[dst_y * preview->width + dst_x] = palette->entries[indexed_pixels[y * TILE_SIZE + x]];
+            preview->pixels[dst_y * preview->width + dst_x] = palette->entries[indexed_pixels[y * TILE_SPAN + x]];
           }
         }
       }
@@ -261,8 +270,8 @@ int main(int argc, char *argv[]) {
     return EXIT_FAILURE;
   }
 
-  uint8_t *rom_data = safe_calloc(ROM_SIZE, 1);
-  int tile_id = 1; // first tile should always be blank
+  // count new tiles added per image for logging
+  int prev_tile_count = tile_count;
 
   // Process file list in positonal args
   for (int i = optind; i < argc; i++) {
@@ -273,9 +282,10 @@ int main(int argc, char *argv[]) {
 
     // Convert png data to NgImage
     NgImage *ng_image = convert_image(source);
-    printf("  %dx%d: %d tiles, %d sprites, %d palettes\n",
+    printf("  %dx%d: %d tiles, %d new sprites, %d palettes\n",
         source->width, source->height,
-        ng_image->tile_count, ng_image->sprite_count, ng_image->palette_count);
+        ng_image->tile_count, tile_count - prev_tile_count, ng_image->palette_count);
+    prev_tile_count = tile_count;
     free_image(source);
 
     char tiles_file[MAX_FILENAME_LEN];
@@ -284,14 +294,8 @@ int main(int argc, char *argv[]) {
 
     // Write tiles data
     printf("  Saving tiles data to %s\n", tiles_file);
-    if (save_tiles(tiles_file, ng_image, tile_id) != 0) {
+    if (save_tiles(tiles_file, ng_image) != 0) {
       return EXIT_FAILURE;
-    }
-
-    // Copy sprites to ROM data
-    for (int j=0; j < ng_image->sprite_count; j++) {
-      memcpy(rom_data + tile_id * SPRITE_SIZE, ng_image->sprites[j], SPRITE_SIZE);
-      tile_id++;
     }
 
     // Save preview image
@@ -306,11 +310,10 @@ int main(int argc, char *argv[]) {
   // Save combined sprite graphics data to roms directory
   if (rom_dir && strlen(rom_dir) > 0) {
     printf("Saving ROMs:\n");
-    if (save_roms(rom_data, rom_dir) != 0) {
+    if (save_roms(tile_rom_data, rom_dir) != 0) {
       return EXIT_FAILURE;
     }
   }
 
-  free(rom_data);
   return EXIT_SUCCESS;
 }

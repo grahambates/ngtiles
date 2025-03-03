@@ -10,7 +10,7 @@
 static inline uint16_t swap16(uint16_t val) { return (val >> 8) | (val << 8); }
 
 // Write NgImage tiles data (palette + mappings) to disk
-int save_tiles(const char *filename, const NgImage *image, int offset) {
+int save_tiles(const char *filename, const NgImage *image) {
   // UWORD palette_count;                     Number of palette entries
   // UWORD palette_entries[palette_count*16]; Color values in NG format
   // UWORD tile_width;                        Width of image in tiles
@@ -33,7 +33,7 @@ int save_tiles(const char *filename, const NgImage *image, int offset) {
   data[index++] = swap16(image->tile_width);
   data[index++] = swap16(image->tile_height);
   for (int i = 0; i < image->tile_count; i++) {
-    data[index++] = swap16(image->sprite_map[i] + offset);
+    data[index++] = swap16(image->tile_map[i]);
     data[index++] = swap16(image->palette_map[i]);
   }
 
