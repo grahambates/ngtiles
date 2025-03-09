@@ -16,7 +16,7 @@ int save_tiles(const char *filename, const NgImage *image) {
   // UWORD tile_width;                        Width of image in tiles
   // UWORD tile_height;                       Height of image in tiles
   // struct {
-  //     UWORD sprite_index;                  Index of the sprite in the sprite table
+  //     UWORD tile_index;                    Index of the tile in the ROM data
   //     UWORD palette_index;                 Index of the palette for this tile
   // } mappings[tile_width * tile_height];    Mappings per tile
 
