@@ -162,7 +162,7 @@ NgImage *convert_image(Image *source) {
       int existing_index = existing_tile_index(hash, tile_count);
       if (existing_index >= 0) {
         // Reuse existing tile
-        ng_image->tile_map[tile_count] = existing_index;
+        ng_image->tile_map[tile_index] = existing_index;
       } else {
         // Store new unique tile
         uint8_t *tile_ptr = &tile_rom_data[tile_count * TILE_SIZE];
