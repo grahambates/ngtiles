@@ -90,11 +90,13 @@ Image *load_image(const char *filename) {
       return NULL;
     }
 
-	// Check palette size
+    // Check palette size
     if (num_palette <= NUM_COLORS) {
       // Can use fixed palette mode if palette size <= 16
       verbose_log("Using fixed palette with %d colors\n", num_palette);
       fixed_palette = true;
+      // Discard transparency data. We assume colour 0 is transparent
+      png_set_invalid(png, info, PNG_INFO_tRNS);
       // Get palette colors, assume zero transparent
       palette = create_palette(0);
       for (int i = 1; i < num_palette; i++) {
@@ -146,8 +148,7 @@ Image *load_image(const char *filename) {
     image->palette = palette;
     for (int y = 0; y < height; y++) {
       for (int x = 0; x < width; x++) {
-        png_byte *ptr = &(row_pointers[y][x]);
-        image->pixel_indices[y * width + x] = ptr[0];
+        image->pixel_indices[y * width + x] = row_pointers[y][x];
       }
       free(row_pointers[y]);
     }
