@@ -73,11 +73,17 @@ jobs:
         shell: msys2 {0}
         run: |
           mkdir -p bin/
-          # Get list of required DLLs and copy them to bin/
-          ntldd -R bin/ngtiles.exe | awk '{print $3}' | grep /mingw64/bin/ | xargs -I {} cp {} bin/
+          # Extract required DLLs using objdump
+          objdump -p bin/ngtiles.exe | grep "DLL Name" | awk '{print $3}' > dll_list.txt
+          # Copy each required DLL from /mingw64/bin/ to bin/
+          while IFS= read -r dll; do
+            if [ -f "/mingw64/bin/$dll" ]; then
+              cp "/mingw64/bin/$dll" bin/
+            fi
+          done < dll_list.txt
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         with:
           name: ngtiles-${{ runner.os }}
-          path: bin/ngtiles*
+          path: bin/**
