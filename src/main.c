@@ -186,8 +186,10 @@ NgImage *convert_image(Image *source) {
     }
   }
 
-  for (int i = 0; i < tile_index; i++) {
-    free(palettes[i]);
+  if (!source->fixed_palette) {
+    for (int i = 0; i < tile_index; i++) {
+      free(palettes[i]);
+    }
   }
   return ng_image;
 }
