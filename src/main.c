@@ -143,6 +143,7 @@ NgImage *convert_image(Image *source) {
         // Use single fixed palette
         palette = source->palette;
         extract_tile_indices(source, tx, ty, indexed_pixels);
+        ng_image->palette_map[tile_index] = 0;
       } else {
         // Extract only the actual tile pixels now
         extract_tile_pixels(source, tx, ty, tile_pixels, 0);
