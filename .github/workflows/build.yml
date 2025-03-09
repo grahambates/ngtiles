@@ -68,6 +68,14 @@ jobs:
         shell: msys2 {0}
         run: make
 
+      - name: Identify and copy required DLLs (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          mkdir -p bin/
+          # Get list of required DLLs and copy them to bin/
+          ntldd -R bin/ngtiles.exe | awk '{print $3}' | grep /mingw64/bin/ | xargs -I {} cp {} bin/
+
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         with:
