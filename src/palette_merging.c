@@ -1,16 +1,58 @@
+#include <stdlib.h>
+
 #include "palette_merging.h"
 
+#include "consts.h"
 #include "safe_mem.h"
 #include "log.h"
 
 typedef struct {
-    int a, b;
-    int score;
+  int a, b;
+  int score;
 } MergeCandidate;
 
-// Compare function for sorting (max-heap)
-static int compare_merges(const void *x, const void *y) {
-  return ((MergeCandidate *)y)->score - ((MergeCandidate *)x)->score;
+// Priority Queue (Max-Heap) for Merge Candidates
+typedef struct {
+  MergeCandidate *data;
+  int size;
+} PriorityQueue;
+
+static void heapify_down(PriorityQueue *pq, int i) {
+  int largest = i, left = 2 * i + 1, right = 2 * i + 2;
+  if (left < pq->size && pq->data[left].score > pq->data[largest].score)
+    largest = left;
+  if (right < pq->size && pq->data[right].score > pq->data[largest].score)
+    largest = right;
+  if (largest != i) {
+    MergeCandidate temp = pq->data[i];
+    pq->data[i] = pq->data[largest];
+    pq->data[largest] = temp;
+    heapify_down(pq, largest);
+  }
+}
+
+static MergeCandidate heap_extract_max(PriorityQueue *pq) {
+  MergeCandidate max = pq->data[0];
+  pq->data[0] = pq->data[--pq->size];
+  heapify_down(pq, 0);
+  return max;
+}
+
+static void heap_insert(PriorityQueue *pq, MergeCandidate candidate) {
+  int i = pq->size++;
+  while (i > 0 && pq->data[(i - 1) / 2].score < candidate.score) {
+    pq->data[i] = pq->data[(i - 1) / 2];
+    i = (i - 1) / 2;
+  }
+  pq->data[i] = candidate;
+}
+
+// Find root of a set with path compression
+static int find_root(int x, int merged[]) {
+  if (merged[x] != x) {
+    merged[x] = find_root(merged[x], merged);  // Path compression
+  }
+  return merged[x];
 }
 
 // Merge palette a into palette b (in place, avoiding duplicates)
@@ -26,71 +68,79 @@ static void merge_palettes(Palette *a, Palette *b) {
 
 // Reduce palettes efficiently using a priority queue
 void reduce_palettes(Palette *palettes[], int palette_count, int *merged) {
-  // Max heap for best merge candidates
-  MergeCandidate *queue = safe_malloc(palette_count * palette_count * sizeof(MergeCandidate));
-  int queue_size = 0;
+  for (int i = 0; i < palette_count; i++) {
+    merged[i] = i;
+  }
+
+  PriorityQueue pq = {
+    .data = safe_malloc(palette_count * palette_count * sizeof(MergeCandidate)),
+    .size = 0
+  };
 
   // Precompute all valid merges
   for (int a = 0; a < palette_count; a++) {
-    if (merged[a] >= 0) continue;
     for (int b = a + 1; b < palette_count; b++) {
-      if (merged[b] >= 0) continue;
+      // The number of shared colours is the score we use to prioritise the queue
       int overlap = shared_colors(palettes[a], palettes[b]);
+      // Only insert combinations that can be merged with a combined colour count of <= 16
       int size = palettes[a]->count + palettes[b]->count - overlap;
       if (size <= NUM_COLORS) {
-        queue[queue_size++] = (MergeCandidate){a, b, overlap};
+        heap_insert(&pq, (MergeCandidate){a, b, overlap});
       }
     }
   }
 
-  // Sort by best score (descending order)
-  qsort(queue, queue_size, sizeof(MergeCandidate), compare_merges);
+  // Process items in queue
+  while (pq.size > 0) {
+    MergeCandidate best = heap_extract_max(&pq);
+    int root_a = find_root(best.a, merged);
+    int root_b = find_root(best.b, merged);
 
-  // Process merges using max-heap
-  while (queue_size > 0) {
-    int best_a = queue[0].a;
-    int best_b = queue[0].b;
+    if (root_a == root_b) continue;  // Skip if already merged
 
-    // Remove best merge from queue
-    queue_size--;
-    for (int i = 0; i < queue_size; i++) queue[i] = queue[i + 1];
+    // Do the merge
+    verbose_log("Best merge: %d + %d (score: %d)\n", root_a, root_b, best.score);
+    merged[root_a] = root_b;
+    merge_palettes(palettes[root_a], palettes[root_b]);
 
-    if (merged[best_a] >= 0 || merged[best_b] >= 0 || queue[0].score == 0)
-      continue; // Skip already merged palettes
+    // Update any pairs in the queue that would be affected by this merge
+    for (int i = 0; i < pq.size; i++) {
+      int a = pq.data[i].a;
+      int b = pq.data[i].b;
 
-    verbose_log("Best merge: %d + %d (score: %d)\n", best_a, best_b, queue[0].score);
-    merged[best_a] = best_b;  // Track merging
-    merge_palettes(palettes[best_a], palettes[best_b]);
+      // Check if this pair is affected by the merge
+      if (a != root_a && b != root_a && a != root_b && b != root_b) continue;
 
-    // Update affected pairs **only** (avoid recomputing everything)
-    // This change can only have made merges including best_b change score, or no longer valid
-    // merges inlcuding best_a will be ignored
-    for (int i = 0; i < queue_size; i++) {
-      if (queue[i].a == best_b || queue[i].b == best_b) {
-        int new_overlap = shared_colors(palettes[queue[i].a], palettes[queue[i].b]);
-        int new_size = palettes[queue[i].a]->count + palettes[queue[i].b]->count - new_overlap;
-        if (new_size <= NUM_COLORS) {
-          // Still valid - update score
-          queue[i].score = new_overlap;
-        } else {
-          // No longer a valid merge
-          // set zero score to be ignored
-          queue[i].score = 0;
-        }
+      // Find new roots
+      int new_root_a = find_root(a, merged);
+      int new_root_b = find_root(b, merged);
+
+      // Remove if already merged
+      if (new_root_a == new_root_b) {
+        pq.data[i] = pq.data[--pq.size];
+        heapify_down(&pq, i);
+        i--;
+        continue;
       }
-    }
 
-    // Resort queue after updating affected pairs
-    qsort(queue, queue_size, sizeof(MergeCandidate), compare_merges);
-  }
-  free(queue);
+      // Recalculate overlap and size
+      int new_overlap = shared_colors(palettes[new_root_a], palettes[new_root_b]);
+      int new_size = palettes[new_root_a]->count + palettes[new_root_b]->count - new_overlap;
 
-  // Resolve final mappings
-  for (int i = 0; i < palette_count; i++) {
-    int index = i;
-    while (merged[index] > 0 && merged[index] != index) {
-      index = merged[index];
+      // Remove invalid merge from heap
+      if (new_size > NUM_COLORS) {
+        pq.data[i] = pq.data[--pq.size];
+        heapify_down(&pq, i);
+        i--;
+        continue;
+      }
+
+      // Update valid pair
+      pq.data[i].a = new_root_a;
+      pq.data[i].b = new_root_b;
+      pq.data[i].score = new_overlap;
     }
-    merged[i] = index;
   }
+
+  free(pq.data);
 }
