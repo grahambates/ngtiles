@@ -9,6 +9,9 @@
 #include <stdbool.h>
 #include <string.h>
 #include <getopt.h>
+#include <unistd.h>
+#include <errno.h>
+#include <math.h>
 
 #include "consts.h"
 #include "log.h"
@@ -19,6 +22,13 @@
 #include "color_reduction.h"
 #include "palette_merging.h"
 #include "xxhash.h"
+
+typedef struct ImageOpts {
+  char *output_dir;
+  int align;
+  bool allow_dupes;
+  bool preview;
+} ImageOpts;
 
 // Extracts RGBA pixels of a tile from the image with optional border
 // Border is used for palette generation, and reduces visible seams between tiles
@@ -87,15 +97,16 @@ static RGBA tile_pixels[TILE_PX];
 static uint8_t indexed_pixels[TILE_PX];
 
 // Convert source image to NgImage structure
-NgImage *convert_image(Image *source) {
+NgImage *convert_image(Image *source, ImageOpts *opts) {
   // Calculate number of tiles
   int tiles_x = (source->width + TILE_SPAN - 1) / TILE_SPAN;
   int tiles_y = (source->height + TILE_SPAN - 1) / TILE_SPAN;
   verbose_log("Splitting into %dx%d tiles\n", tiles_x, tiles_y);
 
-  Image *preview = create_image(source->width, source->height, false);
   NgImage *ng_image = create_ng_image(tiles_x, tiles_y);
-  ng_image->preview = preview;
+  if (opts->preview) {
+    ng_image->preview = create_image(source->width, source->height, false);;
+  }
 
   if (source->fixed_palette) {
     ng_image->palettes[ng_image->palette_count++] = convert_palette(source->palette);
@@ -157,9 +168,12 @@ NgImage *convert_image(Image *source) {
       }
 
       // Add tile data and add indices to map
-      // Check unqiueness
+      // Check unqiueness if deduping
+      int existing_index = -1;
       int hash = XXH64(indexed_pixels, TILE_PX, 0);
-      int existing_index = existing_tile_index(hash, tile_count);
+      if (!opts->allow_dupes) {
+        existing_index = existing_tile_index(hash, tile_count);
+      }
       if (existing_index >= 0) {
         // Reuse existing tile
         ng_image->tile_map[tile_index] = existing_index;
@@ -172,13 +186,16 @@ NgImage *convert_image(Image *source) {
         tile_count++;
       }
 
-      // Copy indexed pixels to preview
-      for (int y = 0; y < TILE_SPAN; y++) {
-        for (int x = 0; x < TILE_SPAN; x++) {
-          int dst_x = tx * TILE_SPAN + x;
-          int dst_y = ty * TILE_SPAN + y;
-          if (dst_x < preview->width && dst_y < preview->height) {
-            preview->pixels[dst_y * preview->width + dst_x] = palette->entries[indexed_pixels[y * TILE_SPAN + x]];
+      if (ng_image->preview) {
+        Image *preview = ng_image->preview;
+        // Copy indexed pixels to preview
+        for (int y = 0; y < TILE_SPAN; y++) {
+          for (int x = 0; x < TILE_SPAN; x++) {
+            int dst_x = tx * TILE_SPAN + x;
+            int dst_y = ty * TILE_SPAN + y;
+            if (dst_x < preview->width && dst_y < preview->height) {
+              preview->pixels[dst_y * preview->width + dst_x] = palette->entries[indexed_pixels[y * TILE_SPAN + x]];
+            }
           }
         }
       }
@@ -227,35 +244,186 @@ static void generate_filenames(const char *source_file, const char *output_dir, 
 
 void print_usage(const char *prog_name) {
   printf("Usage: %s [options] <source.png>...\n", prog_name);
+  printf("   or: %s [options] <list.txt>\n", prog_name);
+  printf("   Where each line of <list.txt> contains\n");
+  printf("   <source.png> [options]\n");
+  printf("   These options will be file specific overrides for the defaults passed in program args.\n\n");
   printf("Options:\n");
   printf("  -r, --rom-dir               ROM directory\n");
-  printf("  -o, --output-dir=<dir>      Tiles output directory\n");
   printf("  -v, --verbose               Enable verbose output\n");
   printf("  -h, --help                  Display this help message\n");
+  printf("can be overridden per file:\n");
+  printf("  -o, --output-dir=<dir>      Tiles output directory\n");
+  printf("  -a, --align=<size>          Align start tile index to size\n");
+  printf("  -d, --allow_dupes           Don't de-dupe tiles. All files are included sequentially\n");
+  printf("  -p, --preview               Output preview png\n");
+}
+
+int process_image(const char *source_file, ImageOpts *opts, int *tile_offset) {
+  printf("Processing file %s\n", source_file);
+  Image *source = load_image(source_file);
+  if (!source) return 1;
+
+  // Align starting tile offset
+  if (opts->align > 0) {
+    int aligned_offset = ceil((double)*tile_offset / opts->align) * opts->align;
+    printf("  aligned to offset %d from %d\n", aligned_offset, *tile_offset);
+    tile_count = aligned_offset;
+    *tile_offset = aligned_offset;
+  }
+
+  // Convert png data to NgImage
+  NgImage *ng_image = convert_image(source, opts);
+  if (opts->allow_dupes) {
+    printf("  %dx%d: %d tiles (not deduped), %d palettes\n",
+        source->width, source->height, ng_image->tile_count, ng_image->palette_count);
+  } else {
+    printf("  %dx%d: %d tiles (%d new unique), %d palettes\n",
+        source->width, source->height,
+        ng_image->tile_count, tile_count - *tile_offset, ng_image->palette_count);
+  }
+  *tile_offset = tile_count;
+  free_image(source);
+
+  char tiles_file[MAX_FILENAME_LEN];
+  char preview_file[MAX_FILENAME_LEN];
+  generate_filenames(source_file, opts->output_dir, tiles_file, preview_file);
+
+  // Write tiles data
+  printf("  Saving tiles data to %s\n", tiles_file);
+  if (save_tiles(tiles_file, ng_image) != 0) {
+    free_ng_image(ng_image);
+    return 1;
+  }
+
+  if (opts->preview) {
+    // Save preview image
+    printf("  Saving preview to %s\n", preview_file);
+    if (save_image(preview_file, ng_image->preview) != 0) {
+      free_ng_image(ng_image);
+      return 1;
+    }
+  }
+
+  free_ng_image(ng_image);
+  printf("\n");
+  return 0;
+}
+
+// Define long options
+static struct option long_options[] = {
+  {"output-dir", required_argument, 0, 'o'},
+  {"rom-dir", required_argument, 0, 'r'},
+  {"align", required_argument, 0, 'a'},
+  {"allow-dupes", no_argument, 0, 'd'},
+  {"preview", no_argument, 0, 'p'},
+  {"verbose", no_argument, 0, 'v'},
+  {"help", no_argument, 0, 'h'},
+  {0, 0, 0, 0}};
+
+int process_list_line(char *line, ImageOpts *default_opts, int *tile_offset) {
+  // Tokenize the line using whitespace as delimiter.
+  char *tokens[MAX_LIST_LINE_TOKENS];
+  int token_count = 0;
+  char *token = strtok(line, " \t\n");
+  while (token != NULL && token_count < MAX_LIST_LINE_TOKENS) {
+    tokens[token_count++] = token;
+    token = strtok(NULL, " \t\n");
+  }
+
+  // If there are no tokens, skip this line.
+  if (token_count == 0)
+    return 0;
+
+  // The first token is the filename.
+  char *filename = tokens[0];
+
+  // Build opts for line
+  ImageOpts opts = {0};
+  memcpy(&opts, default_opts, sizeof(ImageOpts));
+
+  optind = 1; // Reset index
+  int opt;
+  while ((opt = getopt_long(token_count, tokens, "o:a:dp", long_options, NULL)) != -1) {
+    switch (opt) {
+      case 'o':
+        opts.output_dir = optarg;
+        break;
+      case 'a':
+        opts.align = atoi(optarg);
+        break;
+      case 'd':
+        opts.allow_dupes = true;
+        break;
+      case 'p':
+        opts.preview = true;
+        break;
+      case '?':
+        error_log("Unknown option for file %s\n", filename);
+    }
+  }
+
+  return process_image(filename, &opts, tile_offset);
+}
+
+int process_list(const char *source_file, ImageOpts *default_opts, int *tile_offset) {
+  printf("Processing list %s\n", source_file);
+  FILE *fp = fopen(source_file, "rb");
+  if (!fp) {
+    error_log("Failed to load list: %s: %s\n", source_file, strerror(errno));
+    return 1;
+  }
+
+  char line[MAX_LIST_LINE_LENGTH];
+  // Read the file line by line.
+  while (fgets(line, sizeof(line), fp)) {
+    // Skip blank lines.
+    if (line[0] == '\n' || line[0] == '#')
+      continue;
+    // Process the line
+    process_list_line(line, default_opts, tile_offset);
+  }
+
+  fclose(fp);
+  return 0;
+}
+
+const char *get_file_extension(const char *filename) {
+  const char *dot = strrchr(filename, '.');
+  if (!dot || dot == filename) return "";
+  return dot + 1;
 }
 
 int main(int argc, char *argv[]) {
   int opt;
-  char *output_dir = "";
   char *rom_dir = "";
 
-  // Define long options
-  static struct option long_options[] = {
-      {"output-dir", required_argument, 0, 'o'},
-      {"verbose", no_argument, 0, 'v'},
-      {"help", no_argument, 0, 'h'},
-      {0, 0, 0, 0}};
+  ImageOpts default_opts = {
+    .output_dir = "",
+    .align = 0,
+    .allow_dupes = false,
+    .preview = false,
+  };
 
-  while ((opt = getopt_long(argc, argv, "o:r:vh", long_options, NULL)) != -1) {
+  while ((opt = getopt_long(argc, argv, "o:r:vhdp", long_options, NULL)) != -1) {
     switch (opt) {
     case 'r':
       rom_dir = optarg;
       break;
     case 'o':
-      output_dir = optarg;
+      default_opts.output_dir = optarg;
+      break;
+    case 'a':
+      default_opts.align = atoi(optarg);
+      break;
+    case 'd':
+      default_opts.allow_dupes = true;
+      break;
+    case 'p':
+      default_opts.preview = true;
       break;
     case 'v':
-      verbose = 1;
+      verbose = true;
       break;
     case 'h':
       print_usage(argv[0]);
@@ -273,41 +441,25 @@ int main(int argc, char *argv[]) {
     return EXIT_FAILURE;
   }
 
-  // count new tiles added per image for logging
-  int prev_tile_count = tile_count;
+  int tile_offset = tile_count;
 
   // Process file list in positonal args
   for (int i = optind; i < argc; i++) {
-    char *source_file = argv[i];
-    printf("Processing file %s\n", source_file);
-    Image *source = load_image(source_file);
-    if (!source) return EXIT_FAILURE;
+    const char *source_file = argv[i];
+    const char *ext = get_file_extension(source_file);
 
-    // Convert png data to NgImage
-    NgImage *ng_image = convert_image(source);
-    printf("  %dx%d: %d tiles, %d new sprites, %d palettes\n",
-        source->width, source->height,
-        ng_image->tile_count, tile_count - prev_tile_count, ng_image->palette_count);
-    prev_tile_count = tile_count;
-    free_image(source);
-
-    char tiles_file[MAX_FILENAME_LEN];
-    char preview_file[MAX_FILENAME_LEN];
-    generate_filenames(source_file, output_dir, tiles_file, preview_file);
-
-    // Write tiles data
-    printf("  Saving tiles data to %s\n", tiles_file);
-    if (save_tiles(tiles_file, ng_image) != 0) {
+    if (strcasecmp(ext, "txt") == 0) {
+      if (process_list(source_file, &default_opts, &tile_offset) != 0) {
+        return EXIT_FAILURE;
+      }
+    } else if (strcasecmp(ext, "png") == 0) {
+      if (process_image(source_file, &default_opts, &tile_offset) != 0) {
+        return EXIT_FAILURE;
+      }
+    } else {
+      error_log("unsupported extension %s\n", ext);
       return EXIT_FAILURE;
     }
-
-    // Save preview image
-    printf("  Saving preview to %s\n", preview_file);
-    if (save_image(preview_file, ng_image->preview) != 0) {
-      return EXIT_FAILURE;
-    }
-    free_ng_image(ng_image);
-    printf("\n");
   }
 
   // Save combined sprite graphics data to roms directory
