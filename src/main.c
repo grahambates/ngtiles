@@ -22,7 +22,7 @@ static void print_usage(const char *prog_name) {
   printf("can be overridden per file:\n");
   printf("  -o, --output-dir=<dir>      Tiles output directory\n");
   printf("  -a, --align=<size>          Align start tile index to size\n");
-  printf("  -d, --allow_dupes           Don't de-dupe tiles. All tiles are included sequentially\n");
+  printf("  -d, --allow-dupes           Don't de-dupe tiles. All tiles are included sequentially\n");
   printf("  -p, --preview               Output preview png\n");
 }
 
