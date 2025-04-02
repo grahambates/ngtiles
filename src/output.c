@@ -1,6 +1,7 @@
 #include <string.h>
 #include <errno.h>
 
+#include "process.h"
 #include "output.h"
 #include "consts.h"
 #include "safe_mem.h"
@@ -10,19 +11,25 @@
 static inline uint16_t swap16(uint16_t val) { return (val >> 8) | (val << 8); }
 
 // Write NgImage tiles data (palette + mappings) to disk
-int save_tiles(const char *filename, const NgImage *image) {
+int save_tiles(const char *filename, const NgImage *image, ImageOpts *opts) {
   // UWORD palette_count;                     Number of palette entries
-  // UWORD palette_entries[palette_count*16]; Color values in NG format
   // UWORD tile_width;                        Width of image in tiles
   // UWORD tile_height;                       Height of image in tiles
+  // UWORD tile_count;                        Number of tiles
+  // UWORD palette_entries[palette_count*16]; Color values in NG format
   // struct {
   //     UWORD tile_index;                    Index of the tile in the ROM data
   //     UWORD palette_index;                 Index of the palette for this tile
-  // } mappings[tile_width * tile_height];    Mappings per tile
+  // } mappings[tile_count];                  Mappings per tile
+  //  or
+  // UWORD tiles[tile_count];                 Tile indices only for single palette
 
-  uint16_t data[1 + MAX_PALETTES*NUM_COLORS + 2 + MAX_TILES*2];
+  uint16_t data[4 + MAX_PALETTES*NUM_COLORS + MAX_TILES*2];
   int index = 0;
   data[index++] = swap16(image->palette_count);
+  data[index++] = swap16(image->tile_width);
+  data[index++] = swap16(image->tile_height);
+  data[index++] = swap16(image->tile_count);
 
   for (int i = 0; i < image->palette_count; i++) {
     if (!image->palettes[i]) continue;
@@ -30,11 +37,14 @@ int save_tiles(const char *filename, const NgImage *image) {
       data[index++] = swap16(image->palettes[i][j]);
     }
   }
-  data[index++] = swap16(image->tile_width);
-  data[index++] = swap16(image->tile_height);
   for (int i = 0; i < image->tile_count; i++) {
     data[index++] = swap16(image->tile_map[i]);
-    data[index++] = swap16(image->palette_map[i]);
+    // Only need one offset if sequential
+    if (opts->allow_dupes && image->palette_count <= 1)
+      break;
+    // Don't include palette index for single fixed palette
+    if (image->palette_count > 1)
+      data[index++] = swap16(image->palette_map[i]);
   }
 
   FILE *fp = fopen(filename, "wb");
