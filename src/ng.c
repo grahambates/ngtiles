@@ -1,5 +1,6 @@
 #include "consts.h"
 #include "safe_mem.h"
+#include <stdint.h>
 #include "ng.h"
 
 NgImage *create_ng_image(int w, int h) {
@@ -60,12 +61,12 @@ static const uint8_t bit_reversal_table[256] = {
   0x1f, 0x9f, 0x5f, 0xdf, 0x3f, 0xbf, 0x7f, 0xff
 };
 
-// Convert indexed data to Neo Geo tiles layout
+// Convert indexed data to Neo Geo 16x16 sprite tile layout
 // see https://wiki.neogeodev.org/index.php?title=Sprite_graphics_format
 void convert_tile(const uint8_t indexed_pixels[], uint8_t *tile_ptr) {
   int index = 0;
   for (int x = 8; x >= 0; x -= 8) {
-    for (int y = 0; y < 16; y++) {
+    for (int y = 0; y < TILE_SPAN; y++) {
       int plane1 = 0, plane2 = 0, plane3 = 0, plane4 = 0;
       int bitpos = 7;
       for (int i = 0; i < 8; i++) {
@@ -80,6 +81,21 @@ void convert_tile(const uint8_t indexed_pixels[], uint8_t *tile_ptr) {
       tile_ptr[index++] = bit_reversal_table[plane3];
       tile_ptr[index++] = bit_reversal_table[plane2];
       tile_ptr[index++] = bit_reversal_table[plane4];
+    }
+  }
+}
+
+// Convert indexed data to Neo Geo 8x8 fixed layer tile layout
+// https://wiki.neogeodev.org/index.php?title=Fix_graphics_format
+void convert_fixed(const uint8_t indexed_pixels[], uint8_t *tile_ptr) {
+  int index = 0;
+  int x_pos[] = {4,6,0,2};
+  for (int i = 0; i < 4; i++) {
+    int x = x_pos[i];
+    for (int y = 0; y < FIXED_SPAN; y++) {
+      uint8_t p1 = indexed_pixels[x + y * 8];
+      uint8_t p2 = indexed_pixels[x + 1 + y * 8];
+      tile_ptr[index++] = (p2 << 4) + p1;
     }
   }
 }

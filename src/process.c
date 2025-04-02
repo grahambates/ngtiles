@@ -21,12 +21,12 @@
 
 // Extracts RGBA pixels of a tile from the image with optional border
 // Border is used for palette generation, and reduces visible seams between tiles
-static void extract_tile_pixels(const Image *source, int tile_x, int tile_y, RGBA pixels[], int border_size) {
-  for (int y = -border_size; y < TILE_SPAN + border_size; y++) {
-    for (int x = -border_size; x < TILE_SPAN + border_size; x++) {
-      int sx = tile_x * TILE_SPAN + x;
-      int sy = tile_y * TILE_SPAN + y;
-      int offset = (y + border_size) * (TILE_SPAN+2*border_size) + (x + border_size);
+static void extract_tile_pixels(const Image *source, int tile_x, int tile_y, int tile_span, RGBA pixels[], int border_size) {
+  for (int y = -border_size; y < tile_span + border_size; y++) {
+    for (int x = -border_size; x < tile_span + border_size; x++) {
+      int sx = tile_x * tile_span + x;
+      int sy = tile_y * tile_span + y;
+      int offset = (y + border_size) * (tile_span+2*border_size) + (x + border_size);
 
       // Ensure within bounds
       if (sx >= 0 && sx < source->width && sy >= 0 && sy < source->height) {
@@ -40,12 +40,12 @@ static void extract_tile_pixels(const Image *source, int tile_x, int tile_y, RGB
 }
 
 // Extracts indices for a tile using image's fixed palette
-static void extract_tile_indices(const Image *source, int tile_x, int tile_y, uint8_t indices[]) {
-  for (int y = 0; y < TILE_SPAN; y++) {
-    for (int x = 0; x < TILE_SPAN; x++) {
-      int sx = tile_x * TILE_SPAN + x;
-      int sy = tile_y * TILE_SPAN + y;
-      int offset = y * TILE_SPAN + x;
+static void extract_tile_indices(const Image *source, int tile_x, int tile_y, int tile_span, uint8_t indices[]) {
+  for (int y = 0; y < tile_span; y++) {
+    for (int x = 0; x < tile_span; x++) {
+      int sx = tile_x * tile_span + x;
+      int sy = tile_y * tile_span + y;
+      int offset = y * tile_span + x;
       // Ensure within bounds
       if (sx >= 0 && sx < source->width && sy >= 0 && sy < source->height) {
         indices[offset] = source->pixel_indices[sy * source->width + sx];
@@ -87,9 +87,15 @@ static uint8_t indexed_pixels[TILE_PX];
 
 // Convert source image to NgImage structure
 static NgImage *convert_image(Image *source, ImageOpts *opts, uint8_t *tile_rom_data) {
+  int tile_span = opts->fixed ? FIXED_SPAN : TILE_SPAN;
+  int tile_px = tile_span * tile_span;
+  int tile_span_exp = tile_span + 2 * BORDER_SIZE;
+  int tile_px_exp = tile_span_exp * tile_span_exp;
+  int tile_size = tile_px / 2; // 2px per byte
+
   // Calculate number of tiles
-  int tiles_x = (source->width + TILE_SPAN - 1) / TILE_SPAN;
-  int tiles_y = (source->height + TILE_SPAN - 1) / TILE_SPAN;
+  int tiles_x = (source->width + tile_span - 1) / tile_span;
+  int tiles_y = (source->height + tile_span - 1) / tile_span;
   verbose_log("Splitting into %dx%d tiles\n", tiles_x, tiles_y);
 
   NgImage *ng_image = create_ng_image(tiles_x, tiles_y);
@@ -111,8 +117,8 @@ static NgImage *convert_image(Image *source, ImageOpts *opts, uint8_t *tile_rom_
     for (int tx = 0; tx < tiles_x; tx++) {
       for (int ty = 0; ty < tiles_y; ty++) {
         verbose_log("Processing tile [%d,%d]\n", tx, ty);
-        extract_tile_pixels(source, tx, ty, expanded_pixels, BORDER_SIZE);
-        palettes[palette_count] = create_palette_from_tile(expanded_pixels, palette_count);
+        extract_tile_pixels(source, tx, ty, tile_span, expanded_pixels, BORDER_SIZE);
+        palettes[palette_count] = create_palette_from_tile(expanded_pixels, tile_px_exp, palette_count);
         palette_count++;
       }
     }
@@ -142,15 +148,15 @@ static NgImage *convert_image(Image *source, ImageOpts *opts, uint8_t *tile_rom_
       if (source->fixed_palette) {
         // Use single fixed palette
         palette = source->palette;
-        extract_tile_indices(source, tx, ty, indexed_pixels);
+        extract_tile_indices(source, tx, ty, tile_span, indexed_pixels);
         ng_image->palette_map[tile_index] = 0;
       } else {
         // Extract only the actual tile pixels now
-        extract_tile_pixels(source, tx, ty, tile_pixels, 0);
+        extract_tile_pixels(source, tx, ty, tile_span, tile_pixels, 0);
         // Map palette indices to pixels
         int palette_index = merged_palettes_map[tile_index];
         palette = palettes[palette_index];
-        index_tile_pixels(tile_pixels, palette, indexed_pixels);
+        index_tile_pixels(tile_pixels, palette, indexed_pixels, tile_span);
 
         // Add mapped palette index to map
         ng_image->palette_map[tile_index] = ng_palette_map[palette_index];
@@ -159,7 +165,7 @@ static NgImage *convert_image(Image *source, ImageOpts *opts, uint8_t *tile_rom_
       // Add tile data and add indices to map
       // Check unqiueness if deduping
       int existing_index = -1;
-      int hash = XXH64(indexed_pixels, TILE_PX, 0);
+      int hash = XXH64(indexed_pixels, tile_px, 0);
       if (!opts->allow_dupes) {
         existing_index = existing_tile_index(hash, tile_count);
       }
@@ -168,8 +174,12 @@ static NgImage *convert_image(Image *source, ImageOpts *opts, uint8_t *tile_rom_
         ng_image->tile_map[tile_index] = existing_index;
       } else {
         // Store new unique tile
-        uint8_t *tile_ptr = &tile_rom_data[tile_count * TILE_SIZE];
-        convert_tile(indexed_pixels, tile_ptr);
+        uint8_t *tile_ptr = &tile_rom_data[tile_count * tile_size];
+        if (opts->fixed) {
+          convert_fixed(indexed_pixels, tile_ptr);
+        } else {
+          convert_tile(indexed_pixels, tile_ptr);
+        }
         tile_hashes[tile_count] = hash;
         ng_image->tile_map[tile_index] = tile_count;
         tile_count++;
@@ -178,12 +188,12 @@ static NgImage *convert_image(Image *source, ImageOpts *opts, uint8_t *tile_rom_
       if (ng_image->preview) {
         Image *preview = ng_image->preview;
         // Copy indexed pixels to preview
-        for (int y = 0; y < TILE_SPAN; y++) {
-          for (int x = 0; x < TILE_SPAN; x++) {
-            int dst_x = tx * TILE_SPAN + x;
-            int dst_y = ty * TILE_SPAN + y;
+        for (int y = 0; y < tile_span; y++) {
+          for (int x = 0; x < tile_span; x++) {
+            int dst_x = tx * tile_span + x;
+            int dst_y = ty * tile_span + y;
             if (dst_x < preview->width && dst_y < preview->height) {
-              preview->pixels[dst_y * preview->width + dst_x] = palette->entries[indexed_pixels[y * TILE_SPAN + x]];
+              preview->pixels[dst_y * preview->width + dst_x] = palette->entries[indexed_pixels[y * tile_span + x]];
             }
           }
         }

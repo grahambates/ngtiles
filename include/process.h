@@ -9,6 +9,7 @@ typedef struct ImageOpts {
   int align;
   bool allow_dupes;
   bool preview;
+  bool fixed;
 } ImageOpts;
 
 int process_image(const char *source_file, ImageOpts *opts, uint8_t *tile_rom_data);

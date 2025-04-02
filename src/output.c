@@ -92,3 +92,16 @@ int save_roms(const uint8_t rom_data[], const char *rom_dir) {
   free(char2);
   return err;
 }
+
+int save_fixed_rom(const uint8_t rom_data[], const char *rom_dir) {
+  char filename[MAX_FILENAME_LEN];
+  snprintf(filename, MAX_FILENAME_LEN, "%s/241-s1.s1", rom_dir);
+  printf("  %s\n", filename);
+  FILE *fp = fopen(filename, "wb");
+  if (!fp) {
+    error_log("Error writing to file %s: %s\n", filename, strerror(errno));
+    return errno;
+  }
+  fwrite(rom_data, 1, 0x20000, fp);
+  return 0;
+}

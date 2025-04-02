@@ -17,6 +17,7 @@ static void print_usage(const char *prog_name) {
   printf("   These options will be file specific overrides for the defaults passed in program args.\n\n");
   printf("Options:\n");
   printf("  -r, --rom-dir               ROM directory\n");
+  printf("  -f, --fixed                 Fixed layer format\n");
   printf("  -v, --verbose               Enable verbose output\n");
   printf("  -h, --help                  Display this help message\n");
   printf("can be overridden per file:\n");
@@ -51,11 +52,12 @@ int main(int argc, char *argv[]) {
     {"align", required_argument, 0, 'a'},
     {"allow-dupes", no_argument, 0, 'd'},
     {"preview", no_argument, 0, 'p'},
+    {"fixed", no_argument, 0, 'f'},
     {"verbose", no_argument, 0, 'v'},
     {"help", no_argument, 0, 'h'},
     {0, 0, 0, 0}};
 
-  while ((opt = getopt_long(argc, argv, "o:r:vhdp", long_options, NULL)) != -1) {
+  while ((opt = getopt_long(argc, argv, "o:r:vhdpf", long_options, NULL)) != -1) {
     switch (opt) {
     case 'r':
       rom_dir = optarg;
@@ -71,6 +73,9 @@ int main(int argc, char *argv[]) {
       break;
     case 'p':
       default_opts.preview = true;
+      break;
+    case 'f':
+      default_opts.fixed = true;
       break;
     case 'v':
       verbose = true;
@@ -113,9 +118,9 @@ int main(int argc, char *argv[]) {
   // Save combined sprite graphics data to roms directory
   if (rom_dir && strlen(rom_dir) > 0) {
     printf("Saving ROMs:\n");
-    if (save_roms(tile_rom_data, rom_dir) != 0) {
-      return EXIT_FAILURE;
-    }
+    return default_opts.fixed
+      ? save_fixed_rom(tile_rom_data, rom_dir)
+      : save_roms(tile_rom_data, rom_dir);
   }
 
   return EXIT_SUCCESS;

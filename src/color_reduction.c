@@ -67,14 +67,14 @@ int compare_blue(const void *a, const void *b) {
 }
 
 // Get optimal <=16 color palette for tile
-Palette *create_palette_from_tile(const RGBA tile_pixels[], int index) {
+Palette *create_palette_from_tile(const RGBA tile_pixels[], int px_count, int index) {
   Palette *palette = create_palette(index);
 
   // Initialize first box with all pixels
   Box **boxes = safe_malloc(NUM_BOXES * sizeof(Box *));
-  boxes[0] = create_box(TILE_PX_EXP);
+  boxes[0] = create_box(px_count);
   int err = 0;
-  for (int i = 0; i < TILE_PX_EXP; i++) {
+  for (int i = 0; i < px_count; i++) {
     add_to_box(boxes[0], tile_pixels[i]);
     // Also try to build a single palette, and track whether it's full
     if (!err && tile_pixels[i].a > 0) {
@@ -236,19 +236,19 @@ void apply_dithering(Image *source) {
 }
 
 // Get closest palette index for each pixel in image
-void index_tile_pixels(const RGBA pixels[], const Palette *palette, uint8_t indexed_pixels[]) {
-  for (int y = 0; y < TILE_SPAN; y++) {
-    for (int x = 0; x < TILE_SPAN; x++) {
-      const RGBA *pixel = &pixels[y * TILE_SPAN + x];
+void index_tile_pixels(const RGBA pixels[], const Palette *palette, uint8_t indexed_pixels[], int tile_span) {
+  for (int y = 0; y < tile_span; y++) {
+    for (int x = 0; x < tile_span; x++) {
+      const RGBA *pixel = &pixels[y * tile_span + x];
 
       // Fixed index for transparent pixels
       if (pixel->a == 0) {
-        indexed_pixels[y * TILE_SPAN + x] = 0;
+        indexed_pixels[y * tile_span + x] = 0;
         continue;
       }
 
       // Find closest palette color
-      indexed_pixels[y * TILE_SPAN + x] = find_closest_palette_color(pixel, palette);
+      indexed_pixels[y * tile_span + x] = find_closest_palette_color(pixel, palette);
     }
   }
 }

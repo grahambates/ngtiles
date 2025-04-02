@@ -20,6 +20,7 @@ typedef struct NgImage {
 NgImage *create_ng_image(int w, int h);
 void free_ng_image(NgImage *image);
 void convert_tile(const uint8_t indexed_pixels[], uint8_t *tile_ptr);
+void convert_fixed(const uint8_t indexed_pixels[], uint8_t *tile_ptr);
 uint16_t *convert_palette(const Palette *palette);
 
 #endif // NG_H
