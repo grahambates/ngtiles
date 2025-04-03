@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include "consts.h"
 #include "unity.h"
 #include "color_reduction.h"
 #include "colors.h"
@@ -11,7 +12,7 @@ void test_create_palette_from_tile(void) {
     for (int i = 0; i < TILE_PX_EXP; i++) {
         tile_pixels[i] = (RGBA){i % 256, i % 256, i % 256, 255};
     }
-    Palette *palette = create_palette_from_tile(tile_pixels, 0);
+    Palette *palette = create_palette_from_tile(tile_pixels, TILE_PX_EXP, 0);
     TEST_ASSERT_NOT_NULL(palette);
     TEST_ASSERT_LESS_OR_EQUAL(NUM_COLORS, palette->count);
     free(palette);
@@ -44,7 +45,7 @@ void test_index_tile_pixels(void) {
         add_to_palette(palette, &color);
     }
     uint8_t indexed_pixels[TILE_PX];
-    index_tile_pixels(tile_pixels, palette, indexed_pixels);
+    index_tile_pixels(tile_pixels, palette, indexed_pixels, TILE_SPAN);
     for (int i = 0; i < TILE_PX; i++) {
         TEST_ASSERT_LESS_THAN(NUM_COLORS, indexed_pixels[i]);
     }

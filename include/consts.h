@@ -9,6 +9,7 @@
 #define BORDER_SIZE 1 // Number of pixels to extend around each tile
 #define TILE_SPAN_EXP (TILE_SPAN+2*BORDER_SIZE)
 #define TILE_PX_EXP (TILE_SPAN_EXP*TILE_SPAN_EXP)
+#define FIXED_SPAN 8
 #define NUM_BOXES (NUM_COLORS-1) // Colour 0 is always transparent
 #define ROM_SIZE 0x1000000
 #define TILE_SIZE (TILE_PX/2) // Two px per byte
@@ -17,5 +18,6 @@
 #define MAX_FILENAME_LEN 1024
 #define MAX_LIST_LINE_LENGTH 512
 #define MAX_LIST_LINE_TOKENS 128
+
 
 #endif // CONSTS_H
