@@ -264,8 +264,14 @@ int process_image(const char *source_file, ImageOpts *opts, uint8_t *tile_rom_da
         source->width, source->height,
         ng_image->tile_count, tile_count - tile_offset, ng_image->palette_count);
   }
-  tile_offset = tile_count;
   free_image(source);
+  tile_offset = tile_count;
+
+  if (opts->fixed && ng_image->palette_count > 16) {
+    error_log("Exceeds maximum of 16 palettes for fixed layer\n");
+    free_ng_image(ng_image);
+    return 1;
+  }
 
   char tiles_file[MAX_FILENAME_LEN];
   char preview_file[MAX_FILENAME_LEN];
